@@ -19,6 +19,7 @@ const marksOversightController = require('../controllers/schooladmin/marksoversi
 const analyticsController = require('../controllers/schooladmin/analytics.controller');
 const holidayController = require('../controllers/schooladmin/holiday.controller');
 const correctionController = require('../controllers/schooladmin/correction.controller');
+const reportCardController = require('../controllers/schooladmin/reportcard.controller');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -89,6 +90,7 @@ router.get('/analytics/exam-stats/:examSubjectId', analyticsController.getExamSt
 router.get('/analytics/marks-defaulters', analyticsController.getMarksDefaulters);
 router.get('/analytics/attendance-defaulters', analyticsController.getAttendanceDefaultersList);
 router.get('/analytics/report-card', analyticsController.getStudentReportCard);
+router.get('/analytics/report-card-pdf', reportCardController.downloadReportCardPDF);
 
 // Holidays
 router.post('/holidays', holidayController.createHoliday);

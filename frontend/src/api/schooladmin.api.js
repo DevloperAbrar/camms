@@ -1,0 +1,56 @@
+import api from './axios';
+
+// Sessions
+export const getSessions    = ()     => api.get('/schooladmin/sessions');
+export const createSession  = (data) => api.post('/schooladmin/sessions', data);
+export const activateSession= (id)   => api.post(`/schooladmin/sessions/${id}/activate`);
+
+// Classes
+export const getClasses     = ()     => api.get('/schooladmin/classes');
+export const createClass    = (data) => api.post('/schooladmin/classes', data);
+export const deleteClass    = (id)   => api.delete(`/schooladmin/classes/${id}`);
+
+// Sections
+export const createSection  = (data) => api.post('/schooladmin/sections', data);
+export const updateSection  = (id, data) => api.patch(`/schooladmin/sections/${id}`, data);
+export const deleteSection  = (id)   => api.delete(`/schooladmin/sections/${id}`);
+
+// Subjects
+export const getSubjects    = (params) => api.get('/schooladmin/subjects', { params });
+export const createSubject  = (data)   => api.post('/schooladmin/subjects', data);
+export const copySubjects   = (data)   => api.post('/schooladmin/subjects/copy', data);
+export const deleteSubject  = (id)     => api.delete(`/schooladmin/subjects/${id}`);
+
+// Faculty
+export const getFaculty         = ()     => api.get('/schooladmin/faculty');
+export const createFaculty      = (data) => api.post('/schooladmin/faculty', data);
+export const getFacultyAssignments = ()  => api.get('/schooladmin/faculty/assignments');
+export const assignFaculty      = (data) => api.post('/schooladmin/faculty/assignments', data);
+export const removeFacultyAssignment = (id) => api.delete(`/schooladmin/faculty/assignments/${id}`);
+
+// Students
+export const getStudents        = (params) => api.get('/schooladmin/students', { params });
+export const createStudent      = (data)   => api.post('/schooladmin/students', data);
+export const getCsvTemplate     = ()       => api.get('/schooladmin/students/csv-template', { responseType: 'blob' });
+export const previewCsvUpload   = (formData) => api.post('/schooladmin/students/csv-preview', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const commitCsvUpload    = (data)   => api.post('/schooladmin/students/csv-commit', data);
+
+// Exam Types
+export const getExamTypes       = (params) => api.get('/schooladmin/exam-types', { params });
+export const createExamType     = (data)   => api.post('/schooladmin/exam-types', data);
+export const addExamSubject     = (data)   => api.post('/schooladmin/exam-types/subjects', data);
+
+// Analytics
+export const getReportCard      = (params) => api.get('/schooladmin/analytics/report-card', { params });
+export const downloadReportCard = (params) => api.get('/schooladmin/analytics/report-card-pdf', { params, responseType: 'blob' });
+export const getAttendanceDefaulters = (params) => api.get('/schooladmin/analytics/attendance-defaulters', { params });
+export const getMarksDefaulters = (params) => api.get('/schooladmin/analytics/marks-defaulters', { params });
+
+// Corrections
+export const getCorrections     = ()      => api.get('/schooladmin/corrections');
+export const reviewCorrection   = (id, data) => api.patch(`/schooladmin/corrections/${id}/review`, data);
+
+// Holidays
+export const getHolidays        = (params) => api.get('/schooladmin/holidays', { params });
+export const createHoliday      = (data)   => api.post('/schooladmin/holidays', data);
+export const deleteHoliday      = (id)     => api.delete(`/schooladmin/holidays/${id}`);
