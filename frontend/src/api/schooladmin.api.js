@@ -39,8 +39,15 @@ export const commitCsvUpload    = (data)   => api.post('/schooladmin/students/cs
 export const getExamTypes       = (params) => api.get('/schooladmin/exam-types', { params });
 export const createExamType     = (data)   => api.post('/schooladmin/exam-types', data);
 export const addExamSubject     = (data)   => api.post('/schooladmin/exam-types/subjects', data);
+export const updateExamSubject  = (id, data) => api.patch(`/schooladmin/exam-types/subjects/${id}`, data);
+export const forceUnlockExamType = (id, data) => api.post(`/schooladmin/exam-types/${id}/force-unlock`, data);
+
+// Marks Oversight
+export const getMarksForExamSubject = (examSubjectId) => api.get(`/schooladmin/marks/exam-subject/${examSubjectId}`);
+export const overrideMark       = (id, data) => api.patch(`/schooladmin/marks/${id}/override`, data);
 
 // Analytics
+export const getExamStats       = (examSubjectId) => api.get(`/schooladmin/analytics/exam-stats/${examSubjectId}`);
 export const getReportCard      = (params) => api.get('/schooladmin/analytics/report-card', { params });
 export const downloadReportCard = (params) => api.get('/schooladmin/analytics/report-card-pdf', { params, responseType: 'blob' });
 export const getAttendanceDefaulters = (params) => api.get('/schooladmin/analytics/attendance-defaulters', { params });
