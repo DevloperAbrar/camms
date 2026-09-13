@@ -32,6 +32,7 @@ import AdminAnalytics from './pages/admin/Analytics';
 import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultyAttendance from './pages/faculty/Attendance';
 import FacultyMarks from './pages/faculty/Marks';
+import FacultyAnalytics from './pages/faculty/Analytics';
 
 // Parent Pages
 import ParentDashboard from './pages/parent/Dashboard';
@@ -42,7 +43,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* Auth */}
@@ -78,6 +78,7 @@ export default function App() {
           <Route path="dashboard" element={<FacultyDashboard />} />
           <Route path="attendance" element={<FacultyAttendance />} />
           <Route path="marks" element={<FacultyMarks />} />
+          <Route path="analytics" element={<FacultyAnalytics />} />
         </Route>
 
         {/* Parent */}
