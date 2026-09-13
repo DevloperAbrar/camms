@@ -1,6 +1,7 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
 const { prisma } = require('../../config/db');
+// prisma is already imported above — used for facultyAssignment check in attendance report
 const {
   getFacultyViewableSections,
   getFacultyViewableSubjectIds,
@@ -9,9 +10,10 @@ const analyticsService = require('../../services/analytics.service');
 const { generateStudentReportCardPDF } = require('../../services/pdf.service');
 
 // GET /faculty/reports/attendance
-// Frontend sends: sessionId, classId, sectionId, fromDate, toDate
+// Frontend sends: sessionId, classId, sectionId, fromDate, toDate, subjectId (optional)
+// Class teachers: can also pass subjectId to get subject-wise attendance for their section.
 const getMyAttendanceReport = asyncHandler(async (req, res) => {
-  const { sessionId, classId, sectionId, fromDate, toDate } = req.query;
+  const { sessionId, classId, sectionId, fromDate, toDate, subjectId } = req.query;
   const facultyId = req.user.id;
   const schoolId = req.schoolId;
 
@@ -26,7 +28,25 @@ const getMyAttendanceReport = asyncHandler(async (req, res) => {
     return ApiResponse.error(res, 403, 'Access denied to this section');
   }
 
-  // Filter by class if provided (narrow down allowed sections to that class)
+  // If subjectId is requested, verify faculty has access (either assigned to subject OR is class teacher of section)
+  if (subjectId && sectionId) {
+    const section = viewableSections.find(s => s.sectionId === sectionId);
+    if (!section) {
+      return ApiResponse.error(res, 403, 'Access denied to this section');
+    }
+    if (!section.isClassTeacher) {
+      // Regular faculty: must be assigned to this subject in this section
+      const assigned = await prisma.facultyAssignment.findFirst({
+        where: { facultyId, sectionId, subjectId, sessionId, isActive: true },
+      });
+      if (!assigned) {
+        return ApiResponse.error(res, 403, 'Access denied to this subject in this section');
+      }
+    }
+    // Class teachers can view any subject in their section — no extra check needed
+  }
+
+  // Narrow target sections
   let targetSectionIds;
   if (sectionId) {
     targetSectionIds = [sectionId];
@@ -45,10 +65,11 @@ const getMyAttendanceReport = asyncHandler(async (req, res) => {
 
   const report = await analyticsService.getAttendanceReport({
     schoolId,
-    sessionId,          // ← required so enrollment query works
+    sessionId,
     sectionIds: targetSectionIds,
     fromDate,
     toDate,
+    subjectId: subjectId || undefined,   // undefined → daily (null) attendance
   });
 
   return ApiResponse.success(res, 200, 'Attendance report fetched', report);

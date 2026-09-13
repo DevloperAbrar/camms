@@ -456,7 +456,7 @@ function pctAttendance(records) {
 
 // ============= ATTENDANCE REPORT (date-range aware, returns ALL students) =============
 
-async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, sectionIds, fromDate, toDate }) {
+async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, sectionIds, fromDate, toDate, subjectId }) {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       sessionId,
@@ -485,9 +485,10 @@ async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, se
   const results = [];
 
   for (const enr of enrollments) {
+    // subjectId provided → subject-wise attendance; null → daily (overall) attendance
     const where = {
       enrollmentId: enr.id,
-      subjectId: null, // daily attendance only
+      subjectId: subjectId || null,
       ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
     };
 
@@ -499,8 +500,8 @@ async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, se
     ]);
 
     const attendancePercentage = total > 0
-      ? Number(((( present + late) / total) * 100).toFixed(2))
-      : null; // null means no attendance marked
+      ? Number((((present + late) / total) * 100).toFixed(2))
+      : null; // null means no attendance marked yet
 
     results.push({
       studentId:            enr.student.id,
