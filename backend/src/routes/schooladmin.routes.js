@@ -106,6 +106,13 @@ router.get('/analytics/marks-defaulters', analyticsController.getMarksDefaulters
 router.get('/analytics/attendance-defaulters', analyticsController.getAttendanceDefaultersList);
 router.get('/analytics/report-card', analyticsController.getStudentReportCard);
 router.get('/analytics/report-card-pdf', reportCardController.downloadReportCardPDF);
+router.get('/analytics/overview', analyticsController.getOverviewStats);
+router.get('/analytics/class-comparison', analyticsController.getClassComparison);
+router.get('/analytics/section-comparison', analyticsController.getSectionComparison);
+router.get('/analytics/subject-comparison', analyticsController.getSubjectComparison);
+router.get('/analytics/attendance-trend', analyticsController.getAttendanceTrendStats);
+router.get('/analytics/performers', analyticsController.getPerformersList);
+router.get('/analytics/student-progress', analyticsController.getStudentProgress);
 
 // Holidays
 router.post('/holidays', holidayController.createHoliday);

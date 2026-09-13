@@ -68,6 +68,15 @@ export const downloadReportCard = (params) => api.get('/schooladmin/analytics/re
 export const getAttendanceDefaulters = (params) => api.get('/schooladmin/analytics/attendance-defaulters', { params });
 export const getMarksDefaulters = (params) => api.get('/schooladmin/analytics/marks-defaulters', { params });
 
+// Analytics — dashboard additions (overview, comparisons, trends, performers, progress)
+export const getAnalyticsOverview = (params) => api.get('/schooladmin/analytics/overview', { params });
+export const getClassComparison   = (params) => api.get('/schooladmin/analytics/class-comparison', { params });
+export const getSectionComparison = (params) => api.get('/schooladmin/analytics/section-comparison', { params });
+export const getSubjectComparison = (params) => api.get('/schooladmin/analytics/subject-comparison', { params });
+export const getAttendanceTrend   = (params) => api.get('/schooladmin/analytics/attendance-trend', { params });
+export const getPerformers        = (params) => api.get('/schooladmin/analytics/performers', { params });
+export const getStudentProgress   = (params) => api.get('/schooladmin/analytics/student-progress', { params });
+
 // Corrections
 export const getCorrections     = ()      => api.get('/schooladmin/corrections');
 export const reviewCorrection   = (id, data) => api.patch(`/schooladmin/corrections/${id}/review`, data);
