@@ -93,6 +93,7 @@ router.patch('/exam-types/:id', examTypeController.updateExamType);
 router.delete('/exam-types/:id', examTypeController.deleteExamType);
 router.post('/exam-types/subjects', examTypeController.addExamSubject);
 router.patch('/exam-types/subjects/:id', examTypeController.updateExamSubject);
+router.post('/exam-types/:id/copy-subjects', examTypeController.copyExamSubjects);
 router.post('/exam-types/:id/force-unlock', examTypeController.forceUnlockExamType);
 
 // Marks Oversight

@@ -6,6 +6,7 @@ import SuperAdminLogin from './pages/auth/SuperAdminLogin';
 import AdminLogin from './pages/auth/AdminLogin';
 import FacultyLogin from './pages/auth/FacultyLogin';
 import ParentLogin from './pages/auth/ParentLogin';
+import GoogleAuthCallback from './pages/auth/GoogleAuthCallback';
 
 // Layouts
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/superadmin/login" element={<SuperAdminLogin />} />
         <Route path="/faculty/login" element={<FacultyLogin />} />
         <Route path="/parent/login" element={<ParentLogin />} />
+        <Route path="/auth/callback" element={<GoogleAuthCallback />} />
 
         {/* Super Admin */}
         <Route path="/superadmin" element={<ProtectedRoute allowedRoles={['superadmin']}><SuperAdminLayout /></ProtectedRoute>}>

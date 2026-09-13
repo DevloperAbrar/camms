@@ -26,7 +26,7 @@ const googleCallback = [
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.redirect(`${env.CLIENT_URL}/parent/dashboard`);
+    return res.redirect(`${env.CLIENT_URL}/auth/callback`);
   }),
 ];
 

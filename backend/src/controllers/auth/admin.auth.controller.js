@@ -34,7 +34,7 @@ const googleCallback = [
 
     issueSessionCookie(res, user);
 
-    return res.redirect(`${env.CLIENT_URL}/admin/dashboard`);
+    return res.redirect(`${env.CLIENT_URL}/auth/callback`);
   }),
 ];
 

@@ -1,5 +1,7 @@
 import api from './axios';
 
+export const getMe = () => api.get('/auth/me');
+
 export const superadminLogin = (data) => api.post('/auth/superadmin/login', data);
 export const adminPasswordLogin = (data) => api.post('/auth/admin/password-login', data);
 export const facultyPasswordLogin = (data) => api.post('/auth/faculty/password-login', data);

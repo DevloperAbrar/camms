@@ -3,8 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
-const passport = require('./src/config/passport');
-const env = require('./src/config/env');
+const env = require('./src/config/env');       // ← FIRST: loads dotenv before anything else
+const passport = require('./src/config/passport'); // ← AFTER env, so GOOGLE_CALLBACK_URL_* are set
 const routes = require('./src/routes/index');
 const errorMiddleware = require('./src/middleware/error.middleware');
 

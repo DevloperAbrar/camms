@@ -31,6 +31,11 @@ const copyExamConfigSchema = z.object({
   targetClassId: z.string().uuid(),
 });
 
+// Copy subjects+marks from a source exam type INTO an existing target exam type
+const copyExamSubjectsSchema = z.object({
+  sourceExamTypeId: z.string().uuid(), // e.g. Class 6's "Periodic Test 1" id
+});
+
 const updateExamTypeSchema = z.object({
   name: z.string().min(1).optional(),
   sortOrder: z.number().int().optional(),
@@ -59,6 +64,7 @@ module.exports = {
   updateExamSubjectSchema,
   forceUnlockSchema,
   copyExamConfigSchema,
+  copyExamSubjectsSchema,
   updateExamTypeSchema,
   overrideMarkSchema,
   createHolidaySchema,

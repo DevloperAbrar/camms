@@ -7,7 +7,7 @@ import { Plus, Lock, LockOpen, ClipboardList, Settings2, Copy, Pencil, Trash2 } 
 import {
   getSessions, getClasses, getSubjects,
   getExamTypes, createExamType, addExamSubject, updateExamSubject, forceUnlockExamType, copyExamConfig,
-  updateExamType, deleteExamType,
+  copyExamSubjects, updateExamType, deleteExamType,
 } from '../../api/schooladmin.api';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -38,6 +38,7 @@ export default function AdminExamTypes() {
   const [classId, setClassId]     = useState('');
   const [showCreate, setShowCreate]       = useState(false);
   const [showCopy, setShowCopy]           = useState(false);
+  const [showCopySubjects, setShowCopySubjects] = useState(false);
   const [manageExamId, setManageExamId]   = useState(null);
   const [unlockTarget, setUnlockTarget]   = useState(null);
   const [editTarget, setEditTarget]       = useState(null);
@@ -276,6 +277,19 @@ export default function AdminExamTypes() {
               </div>
             )}
 
+            {/* Copy subjects+marks from another class button */}
+            {!manageExam.isLocked && (
+              <div className="flex items-center justify-between bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-[#1e293b]">Copy marks from another class</p>
+                  <p className="text-xs text-[#64748b] mt-0.5">Bulk-fill all subjects and marks from any other class's same exam</p>
+                </div>
+                <Button size="sm" variant="outline" icon={Copy} onClick={() => setShowCopySubjects(true)}>
+                  Copy Marks From
+                </Button>
+              </div>
+            )}
+
             <div className="divide-y divide-[#f1f5f9] border border-[#e2e8f0] rounded-xl overflow-hidden">
               {(manageExam.examSubjects || []).length === 0 ? (
                 <p className="text-center text-sm text-[#94a3b8] py-8">No subjects added to this exam yet.</p>
@@ -396,6 +410,18 @@ export default function AdminExamTypes() {
         </div>
       </Modal>
 
+      {/* Copy subjects+marks into a specific exam type from another class */}
+      <CopySubjectsModal
+        open={showCopySubjects}
+        onClose={() => setShowCopySubjects(false)}
+        targetExamType={manageExam}
+        sessions={sessions}
+        allClasses={allClasses}
+        currentSessionId={sessionId}
+        currentClassId={classId}
+        onCopied={() => qc.invalidateQueries({ queryKey: ['ad-exam-types', sessionId, classId] })}
+      />
+
       {/* Copy exam config from another class */}
       <CopyExamConfigModal
         open={showCopy}
@@ -412,12 +438,167 @@ export default function AdminExamTypes() {
   );
 }
 
+// Modal: pick a class → pick its exam type with same name → bulk-copy subjects+marks
+function CopySubjectsModal({ open, onClose, targetExamType, sessions, allClasses, currentSessionId, currentClassId, onCopied }) {
+  const [sourceSessionId, setSourceSessionId] = useState('');
+  const [sourceClassId, setSourceClassId]     = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setSourceSessionId(currentSessionId);
+      setSourceClassId('');
+    }
+  }, [open, currentSessionId]);
+
+  // Classes in selected session excluding the current class
+  const sourceClasses = (allClasses || []).filter(
+    (c) => c.sessionId === sourceSessionId && !(c.id === currentClassId && sourceSessionId === currentSessionId)
+  );
+
+  // Fetch exam types for the selected source class — so user can pick the right one
+  const { data: sourceExamTypes, isLoading: loadingSourceExams } = useQuery({
+    queryKey: ['ad-exam-types', sourceSessionId, sourceClassId],
+    queryFn: () => import('../../api/schooladmin.api').then(({ getExamTypes }) =>
+      getExamTypes({ sessionId: sourceSessionId, classId: sourceClassId }).then((r) => r.data.data)
+    ),
+    enabled: !!(sourceSessionId && sourceClassId),
+  });
+
+  // Auto-select same-named exam type from source
+  const [sourceExamTypeId, setSourceExamTypeId] = useState('');
+  useEffect(() => {
+    if (sourceExamTypes && targetExamType) {
+      const match = sourceExamTypes.find(
+        (e) => e.name.trim().toLowerCase() === targetExamType.name.trim().toLowerCase()
+      );
+      setSourceExamTypeId(match?.id || '');
+    }
+  }, [sourceExamTypes, targetExamType]);
+
+  const copyMutation = useMutation({
+    mutationFn: () => copyExamSubjects(targetExamType.id, { sourceExamTypeId }),
+    onSuccess: () => { onCopied(); },
+  });
+
+  const handleClose = () => { copyMutation.reset(); setSourceClassId(''); onClose(); };
+  const succeeded = copyMutation.isSuccess;
+  const result    = copyMutation.data?.data?.data;
+
+  const selectedSourceExam = (sourceExamTypes || []).find((e) => e.id === sourceExamTypeId);
+
+  return (
+    <Modal open={open} onClose={handleClose} title={`Copy Marks Into: ${targetExamType?.name || ''}`} size="sm">
+      <div className="space-y-4">
+        {!succeeded ? (
+          <>
+            <p className="text-sm text-[#64748b]">
+              Pick a class to copy subjects and max/passing marks from. Missing subjects will be
+              <span className="font-medium text-[#1e293b]"> auto-created</span> in the current class.
+            </p>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[#374151]">Source Session</label>
+              <select value={sourceSessionId} onChange={(e) => { setSourceSessionId(e.target.value); setSourceClassId(''); setSourceExamTypeId(''); }}
+                className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                {(sessions || []).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[#374151]">Source Class</label>
+              <select value={sourceClassId} onChange={(e) => setSourceClassId(e.target.value)}
+                className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                <option value="">Select class</option>
+                {sourceClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            {sourceClassId && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-[#374151]">Exam Type to copy from</label>
+                {loadingSourceExams ? (
+                  <p className="text-xs text-[#94a3b8]">Loading...</p>
+                ) : (
+                  <select value={sourceExamTypeId} onChange={(e) => setSourceExamTypeId(e.target.value)}
+                    className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                    <option value="">Select exam type</option>
+                    {(sourceExamTypes || []).map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.examSubjects?.length || 0} subjects)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Preview of what will be copied */}
+            {selectedSourceExam && selectedSourceExam.examSubjects?.length > 0 && (
+              <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl overflow-hidden">
+                <p className="text-xs font-medium text-[#64748b] px-3 py-2 border-b border-[#e2e8f0]">Preview — marks to be copied</p>
+                {selectedSourceExam.examSubjects.map((es) => (
+                  <div key={es.id} className="flex items-center justify-between px-3 py-2 border-b border-[#f1f5f9] last:border-0">
+                    <span className="text-sm text-[#1e293b]">{es.subject?.name}</span>
+                    <span className="text-xs text-[#64748b]">
+                      Max: <span className="font-semibold text-[#1e293b]">{es.maxMarks}</span>
+                      {' · '}Pass: <span className="font-semibold text-[#1e293b]">{es.passingMarks}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {copyMutation.isError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+                {copyMutation.error?.response?.data?.message || 'Failed to copy subjects.'}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={handleClose}>Cancel</Button>
+              <Button
+                disabled={!sourceExamTypeId || !selectedSourceExam?.examSubjects?.length}
+                loading={copyMutation.isPending}
+                onClick={() => copyMutation.mutate()}
+              >
+                Copy Marks
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-2">
+            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="font-semibold text-[#1e293b]">Marks copied!</p>
+              <p className="text-sm text-[#64748b] mt-1">
+                {result?.addedSubjects?.length || 0} subject(s) added to <span className="font-medium text-[#1e293b]">{targetExamType?.name}</span>.
+              </p>
+            </div>
+            {result?.autoCreatedSubjects?.length > 0 && (
+              <div className="w-full bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                <p className="font-medium mb-1">Auto-created subjects in this class:</p>
+                <p>{result.autoCreatedSubjects.join(', ')}</p>
+              </div>
+            )}
+            <Button onClick={handleClose}>Done</Button>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function CopyExamConfigModal({
   open, onClose, sessions, allClasses,
   targetSessionId, targetClassId, targetSessionLabel, targetClassName, onCopied,
 }) {
   const [sourceSessionId, setSourceSessionId] = useState('');
   const [sourceClassId, setSourceClassId]     = useState('');
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (open) {
@@ -433,59 +614,90 @@ function CopyExamConfigModal({
   const copyMutation = useMutation({
     mutationFn: () => copyExamConfig({ sourceSessionId, sourceClassId, targetSessionId, targetClassId }),
     onSuccess: (res) => {
-      onCopied(res.data.data);
-      // Keep the modal open only if some subjects were skipped, so the warning is visible.
-      if (!res.data.data?.skippedSubjects?.length) onClose();
+      const result = res.data.data;
+      onCopied(result);
+      // Also refresh subjects list since new subjects may have been auto-created
+      qc.invalidateQueries({ queryKey: ['ad-subjects', targetSessionId, targetClassId] });
     },
   });
 
   const handleClose = () => { copyMutation.reset(); onClose(); };
 
+  const autoCreated = copyMutation.data?.data?.data?.autoCreatedSubjects || [];
+  const succeeded   = copyMutation.isSuccess;
+
   return (
     <Modal open={open} onClose={handleClose} title="Copy Exam Configuration" size="sm">
       <div className="space-y-4">
-        <p className="text-sm text-[#64748b]">
-          Copies all exam types, weightage, and per-subject max/passing marks into{' '}
-          <span className="font-semibold text-[#1e293b]">{targetClassName}</span>
-          {targetSessionLabel ? ` (${targetSessionLabel})` : ''}. Subjects are matched by name — anything not present in the target class is skipped.
-        </p>
+        {!succeeded ? (
+          <>
+            <p className="text-sm text-[#64748b]">
+              Copies all exam types, weightage, and per-subject max/passing marks into{' '}
+              <span className="font-semibold text-[#1e293b]">{targetClassName}</span>
+              {targetSessionLabel ? ` (${targetSessionLabel})` : ''}.{' '}
+              Missing subjects in the target class are <span className="font-medium text-[#1e293b]">automatically created</span> — no manual setup needed.
+            </p>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[#374151]">Copy From Session</label>
-          <select value={sourceSessionId} onChange={(e) => { setSourceSessionId(e.target.value); setSourceClassId(''); }}
-            className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
-            {(sessions || []).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[#374151]">Copy From Session</label>
+              <select value={sourceSessionId} onChange={(e) => { setSourceSessionId(e.target.value); setSourceClassId(''); }}
+                className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                {(sessions || []).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[#374151]">Copy From Class</label>
-          <select value={sourceClassId} onChange={(e) => setSourceClassId(e.target.value)}
-            className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
-            <option value="">Select class</option>
-            {sourceClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[#374151]">Copy From Class</label>
+              <select value={sourceClassId} onChange={(e) => setSourceClassId(e.target.value)}
+                className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                <option value="">Select class</option>
+                {sourceClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
 
-        {copyMutation.isError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
-            {copyMutation.error?.response?.data?.message || 'Failed to copy exam configuration.'}
-          </div>
+            {copyMutation.isError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+                {copyMutation.error?.response?.data?.message || 'Failed to copy exam configuration.'}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={handleClose}>Cancel</Button>
+              <Button disabled={!sourceClassId} loading={copyMutation.isPending} onClick={() => copyMutation.mutate()}>
+                Copy Configuration
+              </Button>
+            </div>
+          </>
+        ) : (
+          /* Success state */
+          <>
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-[#1e293b]">Configuration copied successfully!</p>
+                <p className="text-sm text-[#64748b] mt-1">
+                  All exam types and subject marks have been set up for{' '}
+                  <span className="font-medium text-[#1e293b]">{targetClassName}</span>.
+                </p>
+              </div>
+            </div>
+
+            {autoCreated.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                <p className="font-medium mb-1">Subjects auto-created for {targetClassName}:</p>
+                <p>{autoCreated.join(', ')}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleClose}>Done</Button>
+            </div>
+          </>
         )}
-
-        {copyMutation.isSuccess && copyMutation.data?.data?.data?.skippedSubjects?.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-            Copied, but these subjects don't exist in the target class so their marks were skipped:{' '}
-            {copyMutation.data.data.data.skippedSubjects.join(', ')}
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-          <Button disabled={!sourceClassId} loading={copyMutation.isPending} onClick={() => copyMutation.mutate()}>
-            Copy Configuration
-          </Button>
-        </div>
       </div>
     </Modal>
   );
