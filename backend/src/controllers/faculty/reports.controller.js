@@ -9,43 +9,73 @@ const analyticsService = require('../../services/analytics.service');
 const { generateStudentReportCardPDF } = require('../../services/pdf.service');
 
 // GET /faculty/reports/attendance
+// Frontend sends: sessionId, classId, sectionId, fromDate, toDate
 const getMyAttendanceReport = asyncHandler(async (req, res) => {
-  const { sectionId, subjectId, startDate, endDate } = req.query;
+  const { sessionId, classId, sectionId, fromDate, toDate } = req.query;
   const facultyId = req.user.id;
   const schoolId = req.schoolId;
 
-  const viewableSections = await getFacultyViewableSections({ facultyId });
+  const viewableSections = await getFacultyViewableSections({ facultyId, sessionId });
   const allowedSectionIds = viewableSections.map(s => s.sectionId);
 
-  if (sectionId && !allowedSectionIds.includes(Number(sectionId))) {
+  if (!allowedSectionIds.length) {
+    return ApiResponse.success(res, 200, 'Attendance report fetched', []);
+  }
+
+  if (sectionId && !allowedSectionIds.includes(sectionId)) {
     return ApiResponse.error(res, 403, 'Access denied to this section');
+  }
+
+  // Filter by class if provided (narrow down allowed sections to that class)
+  let targetSectionIds;
+  if (sectionId) {
+    targetSectionIds = [sectionId];
+  } else if (classId) {
+    const classSections = viewableSections
+      .filter(s => s.classId === classId)
+      .map(s => s.sectionId);
+    targetSectionIds = classSections;
+  } else {
+    targetSectionIds = allowedSectionIds;
+  }
+
+  if (!targetSectionIds.length) {
+    return ApiResponse.success(res, 200, 'Attendance report fetched', []);
   }
 
   const report = await analyticsService.getAttendanceReport({
     schoolId,
-    sectionIds: sectionId ? [Number(sectionId)] : allowedSectionIds,
-    subjectId: subjectId ? Number(subjectId) : undefined,
-    startDate,
-    endDate,
+    sessionId,          // ← required so enrollment query works
+    sectionIds: targetSectionIds,
+    fromDate,
+    toDate,
   });
 
   return ApiResponse.success(res, 200, 'Attendance report fetched', report);
 });
 
 // GET /faculty/reports/exam-types
+// Frontend sends: sessionId, classId
 const getMyExamTypes = asyncHandler(async (req, res) => {
+  const { sessionId, classId } = req.query;
+
+  const where = { schoolId: req.schoolId };
+  if (sessionId) where.sessionId = sessionId;
+  if (classId)   where.classId   = classId;
+
   const examTypes = await prisma.examType.findMany({
-    where: { schoolId: req.schoolId },
+    where,
     select: { id: true, name: true },
-    orderBy: { name: 'asc' },
+    orderBy: { sortOrder: 'asc' },
   });
   return ApiResponse.success(res, 200, 'Exam types fetched', examTypes);
 });
 
 // GET /faculty/reports/subjects
+// Frontend sends: sessionId, classId
 const getMySubjectsForReports = asyncHandler(async (req, res) => {
   const facultyId = req.user.id;
-  const { sessionId } = req.query;
+  const { sessionId, classId } = req.query;
 
   const viewableSections = await getFacultyViewableSections({ facultyId, sessionId });
 
@@ -53,88 +83,116 @@ const getMySubjectsForReports = asyncHandler(async (req, res) => {
     return ApiResponse.success(res, 200, 'Subjects fetched', []);
   }
 
-  // Collect all unique classId+sessionId combos then get subjects for each
-  const combos = [
-    ...new Map(
-      viewableSections.map(s => [`${s.sessionId}|${s.classId}`, { sessionId: s.sessionId, classId: s.classId }])
-    ).values(),
-  ];
+  // Narrow to the requested class if provided
+  const combos = classId
+    ? [{ sessionId, classId }]
+    : [...new Map(
+        viewableSections.map(s => [`${s.sessionId}|${s.classId}`, { sessionId: s.sessionId, classId: s.classId }])
+      ).values()];
 
   const subjectArrays = await Promise.all(
-    combos.map(({ sessionId: sid, classId }) =>
-      getFacultyViewableSubjectIds({ facultyId, sessionId: sid, classId })
+    combos.map(({ sessionId: sid, classId: cid }) =>
+      getFacultyViewableSubjectIds({ facultyId, sessionId: sid, classId: cid })
     )
   );
 
   const subjectIds = [...new Set(subjectArrays.flat())];
 
+  if (!subjectIds.length) {
+    return ApiResponse.success(res, 200, 'Subjects fetched', []);
+  }
+
   const subjects = await prisma.subject.findMany({
     where: { id: { in: subjectIds } },
     select: { id: true, name: true, classId: true },
+    orderBy: { name: 'asc' },
   });
 
   return ApiResponse.success(res, 200, 'Subjects fetched', subjects);
 });
 
 // GET /faculty/reports/marks
+// Frontend sends: examTypeId, subjectId (optional), sectionId (optional)
 const getMyMarksReport = asyncHandler(async (req, res) => {
-  const { sectionId, subjectId, examTypeId } = req.query;
+  const { examTypeId, subjectId, sectionId } = req.query;
   const facultyId = req.user.id;
   const schoolId = req.schoolId;
+
+  if (!examTypeId) {
+    return ApiResponse.error(res, 422, 'examTypeId is required');
+  }
 
   const viewableSections = await getFacultyViewableSections({ facultyId });
   const allowedSectionIds = viewableSections.map(s => s.sectionId);
 
-  if (sectionId && !allowedSectionIds.includes(Number(sectionId))) {
+  if (sectionId && !allowedSectionIds.includes(sectionId)) {
     return ApiResponse.error(res, 403, 'Access denied to this section');
   }
 
   const report = await analyticsService.getMarksReport({
     schoolId,
-    sectionIds: sectionId ? [Number(sectionId)] : allowedSectionIds,
-    subjectId: subjectId ? Number(subjectId) : undefined,
-    examTypeId: examTypeId ? Number(examTypeId) : undefined,
+    examTypeId,
+    subjectId:  subjectId  || undefined,
+    sectionIds: sectionId  ? [sectionId] : allowedSectionIds,
   });
 
   return ApiResponse.success(res, 200, 'Marks report fetched', report);
 });
 
 // GET /faculty/reports/students
+// Frontend sends: sessionId, classId, sectionId
 const getMyStudentsForReports = asyncHandler(async (req, res) => {
-  const { sectionId } = req.query;
+  const { sessionId, classId, sectionId, search } = req.query;
   const facultyId = req.user.id;
   const schoolId = req.schoolId;
 
-  const viewableSections = await getFacultyViewableSections({ facultyId });
+  const viewableSections = await getFacultyViewableSections({ facultyId, sessionId });
   const allowedSectionIds = viewableSections.map(s => s.sectionId);
 
-  if (sectionId && !allowedSectionIds.includes(Number(sectionId))) {
+  if (sectionId && !allowedSectionIds.includes(sectionId)) {
     return ApiResponse.error(res, 403, 'Access denied to this section');
   }
 
-  const targetSectionIds = sectionId ? [Number(sectionId)] : allowedSectionIds;
+  let targetSectionIds;
+  if (sectionId) {
+    targetSectionIds = [sectionId];
+  } else if (classId) {
+    targetSectionIds = viewableSections.filter(s => s.classId === classId).map(s => s.sectionId);
+  } else {
+    targetSectionIds = allowedSectionIds;
+  }
 
-  const sections = await prisma.section.findMany({
-    where: { id: { in: targetSectionIds }, schoolId },
-    select: {
-      id: true,
-      name: true,
-      students: {
-        where: { status: 'active' },
-        select: { id: true, name: true, rollNumber: true },
-      },
+  if (!targetSectionIds.length) {
+    return ApiResponse.success(res, 200, 'Students fetched', []);
+  }
+
+  // Students are linked to sections via Enrollment (no direct student.sectionId)
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      sectionId: { in: targetSectionIds },
+      ...(sessionId ? { sessionId } : {}),
+      status: 'active',
+      student: { schoolId },
     },
+    include: {
+      student: { select: { id: true, name: true, enrollmentNumber: true } },
+      section: { select: { id: true, name: true } },
+      class:   { select: { name: true } },
+    },
+    orderBy: { rollNumber: 'asc' },
   });
 
-  const students = sections.flatMap(sec =>
-    sec.students.map(st => ({
-      id: st.id,
-      name: st.name,
-      rollNumber: st.rollNumber,
-      sectionId: sec.id,
-      sectionName: sec.name,
-    }))
-  );
+  const students = enrollments
+    .filter(e => !search || e.student.name.toLowerCase().includes(search.toLowerCase()))
+    .map(e => ({
+      id:               e.student.id,
+      name:             e.student.name,
+      enrollmentNumber: e.student.enrollmentNumber,
+      rollNumber:       e.rollNumber,
+      sectionId:        e.section.id,
+      sectionName:      e.section.name,
+      className:        e.class.name,
+    }));
 
   return ApiResponse.success(res, 200, 'Students fetched', students);
 });
@@ -145,27 +203,65 @@ const getMyStudentReportCard = asyncHandler(async (req, res) => {
   const facultyId = req.user.id;
   const schoolId = req.schoolId;
 
-  const student = await prisma.student.findFirst({
-    where: { id: Number(studentId), schoolId },
-    select: { id: true, sectionId: true },
+  if (!studentId || !sessionId) {
+    return ApiResponse.error(res, 422, 'studentId and sessionId are required');
+  }
+
+  // Find student's enrollment to get their sectionId for access check
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { studentId, sessionId, student: { schoolId } },
+    include: {
+      student: { select: { id: true, name: true, enrollmentNumber: true } },
+      section: { select: { id: true, name: true } },
+      class:   { select: { id: true, name: true } },
+    },
   });
 
-  if (!student) return ApiResponse.error(res, 404, 'Student not found');
+  if (!enrollment) return ApiResponse.error(res, 404, 'Student enrollment not found');
 
-  const viewableSections = await getFacultyViewableSections({ facultyId });
+  const viewableSections = await getFacultyViewableSections({ facultyId, sessionId });
   const allowedSectionIds = viewableSections.map(s => s.sectionId);
 
-  if (!allowedSectionIds.includes(student.sectionId)) {
+  if (!allowedSectionIds.includes(enrollment.sectionId)) {
     return ApiResponse.error(res, 403, 'Access denied to this student');
   }
 
-  const reportCard = await analyticsService.getStudentReportCard({
-    studentId: Number(studentId),
-    sessionId: Number(sessionId),
-    schoolId,
+  // Build report card: all exam types for this class/session, with marks per subject
+  const examTypes = await prisma.examType.findMany({
+    where: { sessionId, classId: enrollment.classId, schoolId },
+    orderBy: { sortOrder: 'asc' },
+    include: {
+      examSubjects: {
+        include: {
+          subject: { select: { name: true } },
+          marks: {
+            where: { enrollmentId: enrollment.id },
+            select: { marksObtained: true },
+          },
+        },
+        orderBy: { subject: { name: 'asc' } },
+      },
+    },
   });
 
-  return ApiResponse.success(res, 200, 'Report card fetched', reportCard);
+  const reportCard = examTypes.map(et => ({
+    examType:        et.name,
+    weightagePercent: et.weightagePercent ?? null,
+    subjects: et.examSubjects.map(es => ({
+      subject:        es.subject.name,
+      marksObtained:  es.marks[0] ? Number(es.marks[0].marksObtained) : null,
+      maxMarks:       Number(es.maxMarks),
+      passingMarks:   Number(es.passingMarks),
+    })),
+  }));
+
+  return ApiResponse.success(res, 200, 'Report card fetched', {
+    student:          enrollment.student.name,
+    enrollmentNumber: enrollment.student.enrollmentNumber,
+    class:            enrollment.class.name,
+    section:          enrollment.section.name,
+    reportCard,
+  });
 });
 
 // GET /faculty/reports/report-card-pdf
@@ -178,25 +274,20 @@ const downloadMyStudentReportCardPDF = asyncHandler(async (req, res) => {
     return ApiResponse.error(res, 422, 'studentId and sessionId are required');
   }
 
-  const student = await prisma.student.findFirst({
-    where: { id: Number(studentId), schoolId },
-    select: { id: true, sectionId: true },
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { studentId, sessionId, student: { schoolId } },
   });
 
-  if (!student) return ApiResponse.error(res, 404, 'Student not found');
+  if (!enrollment) return ApiResponse.error(res, 404, 'Student enrollment not found');
 
-  const viewableSections = await getFacultyViewableSections({ facultyId });
+  const viewableSections = await getFacultyViewableSections({ facultyId, sessionId });
   const allowedSectionIds = viewableSections.map(s => s.sectionId);
 
-  if (!allowedSectionIds.includes(student.sectionId)) {
+  if (!allowedSectionIds.includes(enrollment.sectionId)) {
     return ApiResponse.error(res, 403, 'Access denied to this student');
   }
 
-  const pdfBuffer = await generateStudentReportCardPDF({
-    studentId: Number(studentId),
-    sessionId: Number(sessionId),
-    schoolId,
-  });
+  const pdfBuffer = await generateStudentReportCardPDF({ studentId, sessionId, schoolId });
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="report-card-${studentId}.pdf"`);

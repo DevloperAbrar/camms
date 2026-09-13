@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, XCircle, Clock, AlertTriangle, Users } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, Users, BookOpen } from 'lucide-react';
 import {
   getMyAssignments,
   getRosterForAttendance,
@@ -16,21 +16,18 @@ const STATUSES = ['present', 'absent', 'late'];
 const STATUS_CONFIG = {
   present: {
     icon: CheckCircle,
-    active: 'bg-green-100 text-green-700 border-green-400',
+    active:   'bg-green-100 text-green-700 border-green-400',
     inactive: 'border-[#e2e8f0] text-[#94a3b8] hover:border-green-300 hover:text-green-600',
-    badge: 'success',
   },
   absent: {
     icon: XCircle,
-    active: 'bg-red-100 text-red-700 border-red-400',
+    active:   'bg-red-100 text-red-700 border-red-400',
     inactive: 'border-[#e2e8f0] text-[#94a3b8] hover:border-red-300 hover:text-red-600',
-    badge: 'danger',
   },
   late: {
     icon: Clock,
-    active: 'bg-amber-100 text-amber-700 border-amber-400',
+    active:   'bg-amber-100 text-amber-700 border-amber-400',
     inactive: 'border-[#e2e8f0] text-[#94a3b8] hover:border-amber-300 hover:text-amber-600',
-    badge: 'warning',
   },
 };
 
@@ -38,15 +35,16 @@ export default function FacultyAttendance() {
   const qc = useQueryClient();
   const today = new Date().toISOString().split('T')[0];
 
-  const [sessionId, setSessionId]   = useState('');
-  const [classId, setClassId]       = useState('');
-  const [sectionId, setSectionId]   = useState('');
-  const [date, setDate]             = useState(today);
+  const [sessionId,  setSessionId]  = useState('');
+  const [classId,    setClassId]    = useState('');
+  const [sectionId,  setSectionId]  = useState('');
+  const [subjectId,  setSubjectId]  = useState('');   // ← NEW: subject-wise
+  const [date,       setDate]       = useState(today);
   const [attendance, setAttendance] = useState({});
-  const [submitted, setSubmitted]   = useState(false);
-  const [apiError, setApiError]     = useState('');
+  const [submitted,  setSubmitted]  = useState(false);
+  const [apiError,   setApiError]   = useState('');
 
-  // ── Assignments ──────────────────────────────────────────────────────────
+  // ── Assignments ───────────────────────────────────────────────────────────
   const {
     data: assignments = [],
     isLoading: loadingAssignments,
@@ -58,57 +56,99 @@ export default function FacultyAttendance() {
     retry: false,
   });
 
-  // Derived unique lists
-  const uniqueSessions = [...new Map(assignments.map((a) => [a.sessionId, a.session])).values()];
-  const classesForSession = [...new Map(
-    assignments.filter((a) => a.sessionId === sessionId).map((a) => [a.class.id, a.class])
-  ).values()];
-  const sectionsForClass = [...new Map(
-    assignments.filter((a) => a.sessionId === sessionId && a.class.id === classId).map((a) => [a.section.id, a.section])
-  ).values()];
+  // Unique sessions
+  const uniqueSessions = [
+    ...new Map(assignments.map((a) => [a.sessionId, a.session])).values(),
+  ];
 
-  // Auto-select when only one option
+  // Classes for selected session
+  const classesForSession = [
+    ...new Map(
+      assignments
+        .filter((a) => a.sessionId === sessionId)
+        .map((a) => [a.class.id, a.class])
+    ).values(),
+  ];
+
+  // Sections for selected class — only real assignments (subject not null),
+  // because class-teacher pseudo-entries have no subject to teach attendance for.
+  const sectionsForClass = [
+    ...new Map(
+      assignments
+        .filter((a) => a.sessionId === sessionId && a.class.id === classId && a.subject !== null)
+        .map((a) => [a.section.id, a.section])
+    ).values(),
+  ];
+
+  // Subjects THIS faculty teaches in the selected section
+  // (one teacher may teach multiple subjects in the same section)
+  const subjectsForSection = assignments
+    .filter(
+      (a) =>
+        a.sessionId === sessionId &&
+        a.class.id  === classId   &&
+        a.section.id === sectionId &&
+        a.subject !== null
+    )
+    .map((a) => a.subject)
+    // deduplicate
+    .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i);
+
+  // Auto-select active session
   useEffect(() => {
-    if (uniqueSessions.length === 1) setSessionId(uniqueSessions[0].id);
-  }, [assignments]);
-  useEffect(() => {
-    setClassId('');
-    setSectionId('');
+    if (!sessionId && uniqueSessions.length) {
+      const active = uniqueSessions.find((s) => s.isActive) || uniqueSessions[0];
+      setSessionId(active.id);
+    }
+  }, [assignments]); // eslint-disable-line
+
+  useEffect(() => { setClassId('');   setSectionId(''); setSubjectId(''); resetRoster(); }, [sessionId]);
+  useEffect(() => { setSectionId(''); setSubjectId(''); resetRoster(); }, [classId]);
+  useEffect(() => { setSubjectId(''); resetRoster(); }, [sectionId]);
+  useEffect(() => { resetRoster(); }, [subjectId, date]);
+
+  function resetRoster() {
     setAttendance({});
     setSubmitted(false);
     setApiError('');
-  }, [sessionId]);
-  useEffect(() => {
-    setSectionId('');
-    setAttendance({});
-    setSubmitted(false);
-    setApiError('');
-  }, [classId]);
+  }
 
-  // ── Roster ───────────────────────────────────────────────────────────────
-  const canFetchRoster = !!(sessionId && classId && sectionId);
+  // Auto-select subject when only one exists in the section
+  useEffect(() => {
+    if (subjectsForSection.length === 1 && !subjectId) {
+      setSubjectId(subjectsForSection[0].id);
+    }
+  }, [sectionId, assignments]); // eslint-disable-line
+
+  // ── Roster ────────────────────────────────────────────────────────────────
+  const canFetchRoster = !!(sessionId && classId && sectionId && subjectId);
 
   const {
     data: roster = [],
     isLoading: loadingRoster,
     isError: rosterError,
+    error: rosterErrorObj,
   } = useQuery({
-    queryKey: ['attendance-roster', sessionId, classId, sectionId, date],
-    queryFn: () => getRosterForAttendance({ sessionId, classId, sectionId, date }).then((r) => r.data.data ?? []),
+    queryKey: ['attendance-roster', sessionId, classId, sectionId, subjectId, date],
+    queryFn: () =>
+      getRosterForAttendance({ sessionId, classId, sectionId, subjectId, date })
+        .then((r) => r.data.data ?? []),
     enabled: canFetchRoster,
   });
 
-  // React Query v5 removed onSuccess from useQuery — sync local state via effect instead
+  // Initialise local attendance state from fetched roster
   useEffect(() => {
     if (!roster || roster.length === 0) return;
     const init = {};
-    roster.forEach((e) => { init[e.id] = e.attendance?.[0]?.status || 'present'; });
+    roster.forEach((e) => {
+      init[e.id] = e.attendance?.[0]?.status || 'present';
+    });
     setAttendance(init);
     setSubmitted(roster.every((e) => e.attendance?.length > 0));
     setApiError('');
   }, [roster]);
 
-  // ── Submit ───────────────────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────
   const mutation = useMutation({
     mutationFn: markAttendance,
     onSuccess: () => {
@@ -117,7 +157,9 @@ export default function FacultyAttendance() {
       qc.invalidateQueries({ queryKey: ['attendance-roster'] });
     },
     onError: (err) => {
-      setApiError(err?.response?.data?.message || 'Failed to submit attendance. Please try again.');
+      setApiError(
+        err?.response?.data?.message || 'Failed to submit attendance. Please try again.'
+      );
     },
   });
 
@@ -133,7 +175,7 @@ export default function FacultyAttendance() {
       enrollmentId: e.id,
       status: attendance[e.id] || 'present',
     }));
-    mutation.mutate({ sessionId, classId, sectionId, date, records });
+    mutation.mutate({ sessionId, classId, sectionId, subjectId, date, records });
   }
 
   const stats = {
@@ -144,17 +186,23 @@ export default function FacultyAttendance() {
 
   const allFilled = roster.length > 0 && roster.every((e) => attendance[e.id]);
 
+  // Selected subject name for display
+  const selectedSubject = subjectsForSection.find((s) => s.id === subjectId);
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold text-[#1e293b]">Mark Attendance</h1>
-        <p className="text-sm text-[#64748b] mt-1">Select class and date, then mark each student.</p>
+        <p className="text-sm text-[#64748b] mt-1">
+          Select your subject and date, then mark each student's attendance.
+        </p>
       </div>
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+
           {/* Session */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">Session</label>
@@ -168,17 +216,19 @@ export default function FacultyAttendance() {
               >
                 <option value="">Select session</option>
                 {uniqueSessions.map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}{s.isActive ? ' (Current)' : ''}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.label}{s.isActive ? ' (Current)' : ''}
+                  </option>
                 ))}
               </select>
             )}
             {assignmentsError && (
               <p className="text-xs text-red-600 mt-1">
-                Error loading assignments: {assignmentsErrorObj?.response?.data?.message || assignmentsErrorObj?.message}
+                Error: {assignmentsErrorObj?.response?.data?.message || assignmentsErrorObj?.message}
               </p>
             )}
             {!assignmentsError && !loadingAssignments && assignments.length === 0 && (
-              <p className="text-xs text-amber-600 mt-1">No assignments found for your account. Contact admin.</p>
+              <p className="text-xs text-amber-600 mt-1">No assignments found. Contact admin.</p>
             )}
           </div>
 
@@ -192,7 +242,9 @@ export default function FacultyAttendance() {
               className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white text-[#1e293b] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">Select class</option>
-              {classesForSession.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {classesForSession.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </select>
           </div>
 
@@ -201,13 +253,36 @@ export default function FacultyAttendance() {
             <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">Section</label>
             <select
               value={sectionId}
-              onChange={(e) => { setSectionId(e.target.value); setSubmitted(false); setApiError(''); }}
+              onChange={(e) => setSectionId(e.target.value)}
               disabled={!classId}
               className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white text-[#1e293b] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">Select section</option>
-              {sectionsForClass.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sectionsForClass.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
             </select>
+          </div>
+
+          {/* Subject ← NEW */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+              Subject
+            </label>
+            <select
+              value={subjectId}
+              onChange={(e) => setSubjectId(e.target.value)}
+              disabled={!sectionId || subjectsForSection.length === 0}
+              className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white text-[#1e293b] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">Select subject</option>
+              {subjectsForSection.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            {sectionId && subjectsForSection.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">No subject assignments for this section.</p>
+            )}
           </div>
 
           {/* Date */}
@@ -222,6 +297,14 @@ export default function FacultyAttendance() {
             />
           </div>
         </div>
+
+        {/* Context banner when subject is selected */}
+        {selectedSubject && sectionId && (
+          <div className="mt-4 flex items-center gap-2 text-xs text-[#f97316] bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+            <BookOpen size={14} className="shrink-0" />
+            Marking attendance for <strong>{selectedSubject.name}</strong> — only your subject's records are tracked separately.
+          </div>
+        )}
       </Card>
 
       {/* Roster */}
@@ -232,7 +315,9 @@ export default function FacultyAttendance() {
           ) : rosterError ? (
             <div className="flex flex-col items-center py-16 gap-2">
               <AlertTriangle size={32} className="text-red-400" />
-              <p className="text-sm text-red-600">Failed to load students. Please try again.</p>
+              <p className="text-sm text-red-600">
+                {rosterErrorObj?.response?.data?.message || 'Failed to load students. Please try again.'}
+              </p>
             </div>
           ) : roster.length === 0 ? (
             <div className="flex flex-col items-center py-16 gap-2">
@@ -275,9 +360,14 @@ export default function FacultyAttendance() {
                 {roster.map((enrollment) => {
                   const current = attendance[enrollment.id] || 'present';
                   return (
-                    <div key={enrollment.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#fafafa]">
+                    <div
+                      key={enrollment.id}
+                      className="flex items-center justify-between px-5 py-3 hover:bg-[#fafafa]"
+                    >
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#1e293b] truncate">{enrollment.student.name}</p>
+                        <p className="text-sm font-semibold text-[#1e293b] truncate">
+                          {enrollment.student.name}
+                        </p>
                         <p className="text-xs text-[#94a3b8]">
                           #{enrollment.student.enrollmentNumber}
                           {enrollment.rollNumber ? ` · Roll ${enrollment.rollNumber}` : ''}
@@ -291,8 +381,13 @@ export default function FacultyAttendance() {
                           return (
                             <button
                               key={s}
-                              onClick={() => { setAttendance((prev) => ({ ...prev, [enrollment.id]: s })); setSubmitted(false); }}
-                              className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-semibold capitalize transition-all ${isActive ? cfg.active : cfg.inactive}`}
+                              onClick={() => {
+                                setAttendance((prev) => ({ ...prev, [enrollment.id]: s }));
+                                setSubmitted(false);
+                              }}
+                              className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-semibold capitalize transition-all ${
+                                isActive ? cfg.active : cfg.inactive
+                              }`}
                             >
                               <Icon size={12} /> {s}
                             </button>
@@ -334,7 +429,12 @@ export default function FacultyAttendance() {
       {!canFetchRoster && !loadingAssignments && (
         <div className="flex flex-col items-center py-16 text-center text-[#94a3b8]">
           <Users size={40} className="mb-3 text-[#e2e8f0]" />
-          <p className="text-sm">Select session, class and section above to load students.</p>
+          <p className="text-sm">
+            {!sessionId ? 'Select a session to begin.' :
+             !classId   ? 'Now select a class.' :
+             !sectionId ? 'Now select a section.' :
+                          'Select a subject to load the student roster.'}
+          </p>
         </div>
       )}
     </div>
