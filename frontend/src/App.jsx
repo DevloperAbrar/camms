@@ -27,6 +27,7 @@ import AdminFaculty from './pages/admin/Faculty';
 import AdminStudents from './pages/admin/Students';
 import AdminExamTypes from './pages/admin/ExamTypes';
 import AdminAnalytics from './pages/admin/Analytics';
+import AdminReports from './pages/admin/Reports';
 
 // Faculty Pages
 import FacultyDashboard from './pages/faculty/Dashboard';
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="students" element={<AdminStudents />} />
           <Route path="exams" element={<AdminExamTypes />} />
           <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="reports" element={<AdminReports />} />
         </Route>
 
         {/* Faculty */}

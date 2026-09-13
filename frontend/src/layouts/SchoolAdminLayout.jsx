@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, BookOpen, Users, UserCheck, ClipboardList, BarChart3, LogOut, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, BookOpen, Users, UserCheck, ClipboardList, BarChart3, FileDown, LogOut, GraduationCap } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutAdmin } from '../api/auth.api';
 import useAuthStore from '../store/auth.store';
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/admin/students',  icon: Users,           label: 'Students'   },
   { to: '/admin/exams',     icon: ClipboardList,   label: 'Exams'      },
   { to: '/admin/analytics', icon: BarChart3,       label: 'Analytics'  },
+  { to: '/admin/reports',   icon: FileDown,        label: 'Reports'    },
 ];
 
 export default function SchoolAdminLayout() {

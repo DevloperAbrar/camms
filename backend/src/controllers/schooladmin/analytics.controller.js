@@ -5,6 +5,7 @@ const {
   getExamSubjectStats,
   getDefaulterList,
   getAttendanceDefaulters,
+  getAttendanceReport,
   getOverview,
   getClassWisePerformance,
   getSectionWisePerformance,
@@ -169,10 +170,30 @@ const getStudentProgress = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Student progress fetched', data);
 });
 
+// ---------------------------------------------------------------------------
+// Attendance Report: all students with date-range filtered attendance stats
+// ---------------------------------------------------------------------------
+const getAttendanceReportList = asyncHandler(async (req, res) => {
+  const { sessionId, classId, sectionId, fromDate, toDate } = req.query;
+  if (!sessionId) return ApiResponse.error(res, 422, 'sessionId is required');
+
+  const data = await getAttendanceReport({
+    schoolId: req.schoolId,
+    sessionId,
+    classId,
+    sectionId,
+    fromDate,
+    toDate,
+  });
+
+  return ApiResponse.success(res, 200, 'Attendance report fetched', data);
+});
+
 module.exports = {
   getExamStats,
   getMarksDefaulters,
   getAttendanceDefaultersList,
+  getAttendanceReportList,
   getStudentReportCard,
   getOverviewStats,
   getClassComparison,

@@ -402,10 +402,77 @@ function pctAttendance(records) {
   return Number(((present / records.length) * 100).toFixed(2));
 }
 
+// ============= ATTENDANCE REPORT (date-range aware, returns ALL students) =============
+
+async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, fromDate, toDate }) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      sessionId,
+      status: 'active',
+      ...(classId ? { classId } : {}),
+      ...(sectionId ? { sectionId } : {}),
+      student: { schoolId },
+    },
+    include: {
+      student: { select: { id: true, name: true, enrollmentNumber: true } },
+      class:   { select: { name: true } },
+      section: { select: { name: true } },
+    },
+    orderBy: [{ class: { sortOrder: 'asc' } }, { rollNumber: 'asc' }],
+  });
+
+  // Build date filter
+  const dateFilter = {};
+  if (fromDate) dateFilter.gte = new Date(fromDate);
+  if (toDate) {
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+    dateFilter.lte = to;
+  }
+
+  const results = [];
+
+  for (const enr of enrollments) {
+    const where = {
+      enrollmentId: enr.id,
+      subjectId: null, // daily attendance only
+      ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
+    };
+
+    const [total, present, absent, late] = await Promise.all([
+      prisma.attendance.count({ where }),
+      prisma.attendance.count({ where: { ...where, status: 'present' } }),
+      prisma.attendance.count({ where: { ...where, status: 'absent' } }),
+      prisma.attendance.count({ where: { ...where, status: 'late' } }),
+    ]);
+
+    const attendancePercentage = total > 0
+      ? Number(((( present + late) / total) * 100).toFixed(2))
+      : null; // null means no attendance marked
+
+    results.push({
+      studentId:            enr.student.id,
+      studentName:          enr.student.name,
+      enrollmentNumber:     enr.student.enrollmentNumber,
+      className:            enr.class?.name  || '',
+      sectionName:          enr.section?.name || '',
+      rollNumber:           enr.rollNumber || '',
+      presentDays:          present,
+      absentDays:           absent,
+      lateDays:             late,
+      totalDays:            total,
+      attendancePercentage: attendancePercentage,
+    });
+  }
+
+  return results;
+}
+
 module.exports = {
   getExamSubjectStats,
   getDefaulterList,
   getAttendanceDefaulters,
+  getAttendanceReport,
   getOverview,
   getClassWisePerformance,
   getSectionWisePerformance,

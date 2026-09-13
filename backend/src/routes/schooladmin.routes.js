@@ -104,6 +104,7 @@ router.patch('/marks/:id/override', marksOversightController.overrideMark);
 router.get('/analytics/exam-stats/:examSubjectId', analyticsController.getExamStats);
 router.get('/analytics/marks-defaulters', analyticsController.getMarksDefaulters);
 router.get('/analytics/attendance-defaulters', analyticsController.getAttendanceDefaultersList);
+router.get('/analytics/attendance-report', analyticsController.getAttendanceReportList);
 router.get('/analytics/report-card', analyticsController.getStudentReportCard);
 router.get('/analytics/report-card-pdf', reportCardController.downloadReportCardPDF);
 router.get('/analytics/overview', analyticsController.getOverviewStats);

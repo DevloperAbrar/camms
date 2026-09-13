@@ -66,6 +66,7 @@ export const getExamStats       = (examSubjectId) => api.get(`/schooladmin/analy
 export const getReportCard      = (params) => api.get('/schooladmin/analytics/report-card', { params });
 export const downloadReportCard = (params) => api.get('/schooladmin/analytics/report-card-pdf', { params, responseType: 'blob' });
 export const getAttendanceDefaulters = (params) => api.get('/schooladmin/analytics/attendance-defaulters', { params });
+export const getAttendanceReport     = (params) => api.get('/schooladmin/analytics/attendance-report', { params });
 export const getMarksDefaulters = (params) => api.get('/schooladmin/analytics/marks-defaulters', { params });
 
 // Analytics — dashboard additions (overview, comparisons, trends, performers, progress)
