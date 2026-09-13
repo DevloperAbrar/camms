@@ -88,6 +88,9 @@ router.post('/promotion/run', promotionController.runPromotion);
 // Exam Types & Marks Configuration
 router.post('/exam-types', examTypeController.createExamType);
 router.get('/exam-types', examTypeController.getExamTypes);
+router.post('/exam-types/copy', examTypeController.copyExamConfig);
+router.patch('/exam-types/:id', examTypeController.updateExamType);
+router.delete('/exam-types/:id', examTypeController.deleteExamType);
 router.post('/exam-types/subjects', examTypeController.addExamSubject);
 router.patch('/exam-types/subjects/:id', examTypeController.updateExamSubject);
 router.post('/exam-types/:id/force-unlock', examTypeController.forceUnlockExamType);

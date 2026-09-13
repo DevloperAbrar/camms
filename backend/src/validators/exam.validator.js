@@ -24,6 +24,19 @@ const forceUnlockSchema = z.object({
   reason: z.string().min(5),
 });
 
+const copyExamConfigSchema = z.object({
+  sourceSessionId: z.string().uuid(),
+  sourceClassId: z.string().uuid(),
+  targetSessionId: z.string().uuid(),
+  targetClassId: z.string().uuid(),
+});
+
+const updateExamTypeSchema = z.object({
+  name: z.string().min(1).optional(),
+  sortOrder: z.number().int().optional(),
+  weightagePercent: z.number().min(0).max(100).nullable().optional(),
+});
+
 const overrideMarkSchema = z.object({
   marksObtained: z.number().nonnegative(),
   reason: z.string().min(5),
@@ -45,6 +58,8 @@ module.exports = {
   addExamSubjectSchema,
   updateExamSubjectSchema,
   forceUnlockSchema,
+  copyExamConfigSchema,
+  updateExamTypeSchema,
   overrideMarkSchema,
   createHolidaySchema,
   reviewCorrectionSchema,

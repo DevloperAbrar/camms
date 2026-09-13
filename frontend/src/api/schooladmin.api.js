@@ -52,6 +52,9 @@ export const createExamType     = (data)   => api.post('/schooladmin/exam-types'
 export const addExamSubject     = (data)   => api.post('/schooladmin/exam-types/subjects', data);
 export const updateExamSubject  = (id, data) => api.patch(`/schooladmin/exam-types/subjects/${id}`, data);
 export const forceUnlockExamType = (id, data) => api.post(`/schooladmin/exam-types/${id}/force-unlock`, data);
+export const copyExamConfig     = (data)   => api.post('/schooladmin/exam-types/copy', data);
+export const updateExamType     = (id, data) => api.patch(`/schooladmin/exam-types/${id}`, data);
+export const deleteExamType     = (id)     => api.delete(`/schooladmin/exam-types/${id}`);
 
 // Marks Oversight
 export const getMarksForExamSubject = (examSubjectId) => api.get(`/schooladmin/marks/exam-subject/${examSubjectId}`);
