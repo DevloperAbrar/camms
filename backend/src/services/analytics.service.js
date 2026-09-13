@@ -28,6 +28,54 @@ async function getExamSubjectStats(examSubjectId) {
   };
 }
 
+// Full marks report — ALL entries for the exam type (pass + fail), unlike
+// getDefaulterList below which only returns students under the passing mark.
+async function getMarksReport({ schoolId, examTypeId, subjectId, sectionId }) {
+  const examSubjects = await prisma.examSubject.findMany({
+    where: {
+      examTypeId,
+      examType: { schoolId },
+      ...(subjectId ? { subjectId } : {}),
+    },
+    include: { subject: { select: { name: true } } },
+  });
+
+  const rows = [];
+
+  for (const es of examSubjects) {
+    const marks = await prisma.marks.findMany({
+      where: {
+        examSubjectId: es.id,
+        ...(sectionId ? { enrollment: { sectionId } } : {}),
+      },
+      include: {
+        enrollment: {
+          include: {
+            student: { select: { id: true, name: true, enrollmentNumber: true } },
+            section: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { enrollment: { rollNumber: 'asc' } },
+    });
+
+    marks.forEach((m) => {
+      rows.push({
+        studentId: m.enrollment.student.id,
+        studentName: m.enrollment.student.name,
+        enrollmentNumber: m.enrollment.student.enrollmentNumber,
+        sectionName: m.enrollment.section?.name || '',
+        subject: es.subject.name,
+        marksObtained: Number(m.marksObtained),
+        maxMarks: Number(es.maxMarks),
+        passingMarks: Number(es.passingMarks),
+      });
+    });
+  }
+
+  return rows;
+}
+
 async function getDefaulterList({ schoolId, examTypeId, subjectId }) {
   const examSubjects = await prisma.examSubject.findMany({
     where: {
@@ -480,4 +528,5 @@ module.exports = {
   getAttendanceTrend,
   getTopBottomPerformers,
   getStudentProgressTrend,
+  getMarksReport
 };

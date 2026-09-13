@@ -30,140 +30,199 @@ async function generateStudentReportCardPDF({ studentId, sessionId, schoolId }) 
   });
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
     const buffers = [];
     doc.on('data', (chunk) => buffers.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(buffers)));
     doc.on('error', reject);
 
-    const PRIMARY = '#1e293b';
-    const ACCENT = '#f97316';
-    const LIGHT = '#f1f5f9';
-    const BORDER = '#e2e8f0';
-    const pageWidth = 595.28;
-    const contentWidth = pageWidth - 100;
+    // ── THEME ──────────────────────────────────────────────────────────────
+    const NAVY      = '#1e293b';
+    const ORANGE    = '#f97316';
+    const LIGHT     = '#f8fafc';
+    const HEADER_BG = '#eef2f7';
+    const BORDER    = '#e2e8f0';
+    const TEXT      = '#334155';
+    const MUTED     = '#94a3b8';
+    const GREEN     = '#15803d';
+    const GREEN_BG  = '#e9f9ee';
+    const RED       = '#dc2626';
+    const RED_BG    = '#fdecec';
+    const AMBER     = '#b45309';
+    const AMBER_BG  = '#fef6e7';
 
-    // HEADER
-    doc.rect(0, 0, pageWidth, 90).fill(PRIMARY);
-    doc.fontSize(22).fillColor('#ffffff').text(school.name, 50, 20, { align: 'center', width: contentWidth });
-    doc.fontSize(9).fillColor('#94a3b8').text(school.address || school.contactEmail || '', 50, 48, { align: 'center', width: contentWidth });
-    doc.fontSize(12).fillColor(ACCENT).text('STUDENT REPORT CARD', 50, 66, { align: 'center', width: contentWidth });
+    const M        = 40; // page margin
+    const PAGE_W   = doc.page.width;
+    const PAGE_H   = doc.page.height;
+    const CW       = PAGE_W - M * 2; // usable content width
+    const FOOTER_Y = PAGE_H - 55;
 
-    doc.y = 110;
+    // Fixed column layout shared by every exam table — fractions sum to 1.0
+    // so nothing overflows past the right margin.
+    const COLS = {
+      subject:  { x: M,               width: CW * 0.34 },
+      max:      { x: M + CW * 0.34,   width: CW * 0.13 },
+      pass:     { x: M + CW * 0.47,   width: CW * 0.13 },
+      obtained: { x: M + CW * 0.60,   width: CW * 0.20 },
+      status:   { x: M + CW * 0.80,   width: CW * 0.20 },
+    };
 
-    // STUDENT INFO BOX
-    doc.rect(50, doc.y, contentWidth, 70).fill(LIGHT).stroke(BORDER);
-    const infoY = doc.y + 10;
+    let y = M; // our own cursor — never rely on pdfkit's implicit doc.y
 
-    doc.fontSize(9).fillColor('#64748b').text('STUDENT NAME', 60, infoY);
-    doc.fontSize(11).fillColor(PRIMARY).text(enrollment.student.name, 60, infoY + 12);
-
-    doc.fontSize(9).fillColor('#64748b').text('ENROLLMENT NO.', 220, infoY);
-    doc.fontSize(11).fillColor(PRIMARY).text(enrollment.student.enrollmentNumber, 220, infoY + 12);
-
-    doc.fontSize(9).fillColor('#64748b').text('CLASS / SECTION', 370, infoY);
-    doc.fontSize(11).fillColor(PRIMARY).text(`${enrollment.class.name} — ${enrollment.section.name}`, 370, infoY + 12);
-
-    doc.fontSize(9).fillColor('#64748b').text('SESSION', 60, infoY + 35);
-    doc.fontSize(11).fillColor(PRIMARY).text(enrollment.session.label, 60, infoY + 47);
-
-    doc.fontSize(9).fillColor('#64748b').text('ROLL NO.', 220, infoY + 35);
-    doc.fontSize(11).fillColor(PRIMARY).text(enrollment.rollNumber || '—', 220, infoY + 47);
-
-    doc.y = 200;
-
-    // EXAM TABLES
-    for (const et of examTypes) {
-      if (doc.y > 680) doc.addPage();
-      doc.moveDown(0.8);
-
-      // Exam type header bar
-      doc.rect(50, doc.y, contentWidth, 22).fill(PRIMARY);
-      doc.fontSize(10).fillColor('#ffffff').text(et.name.toUpperCase(), 58, doc.y + 6);
-      if (et.weightagePercent) {
-        doc.fontSize(8).fillColor('#94a3b8').text(
-          `Weightage: ${et.weightagePercent}%`,
-          400, doc.y + 8,
-          { align: 'right', width: contentWidth - 10 }
-        );
+    function newPageIfNeeded(need) {
+      if (y + need > FOOTER_Y - 10) {
+        doc.addPage();
+        y = M;
       }
-      doc.y += 22;
-
-      // Column headers
-      const colY = doc.y;
-      doc.rect(50, colY, contentWidth, 18).fill(LIGHT).stroke(BORDER);
-      doc.fontSize(8).fillColor('#64748b');
-      doc.text('SUBJECT', 58, colY + 5);
-      doc.text('MAX', 300, colY + 5, { width: 60, align: 'right' });
-      doc.text('PASS', 370, colY + 5, { width: 60, align: 'right' });
-      doc.text('OBTAINED', 440, colY + 5, { width: 95, align: 'right' });
-      doc.text('STATUS', 540, colY + 5, { width: 55, align: 'right' });
-      doc.y += 18;
-
-      // Subject rows
-      for (const es of et.examSubjects) {
-        if (doc.y > 720) doc.addPage();
-
-        const rowY = doc.y;
-        const marksObtained = es.marks[0] ? Number(es.marks[0].marksObtained) : null;
-        const passed = marksObtained !== null && marksObtained >= Number(es.passingMarks);
-        const absent = marksObtained === null;
-        const rowBg = absent ? '#fff7ed' : passed ? '#f0fdf4' : '#fef2f2';
-
-        doc.rect(50, rowY, contentWidth, 18).fill(rowBg).stroke(BORDER);
-        doc.fontSize(9).fillColor(PRIMARY).text(es.subject.name, 58, rowY + 5);
-        doc.fillColor('#475569').text(es.maxMarks.toString(), 300, rowY + 5, { width: 60, align: 'right' });
-        doc.text(es.passingMarks.toString(), 370, rowY + 5, { width: 60, align: 'right' });
-
-        if (absent) {
-          doc.fillColor('#f97316').text('ABSENT', 440, rowY + 5, { width: 95, align: 'right' });
-          doc.fillColor('#f97316').text('—', 540, rowY + 5, { width: 55, align: 'right' });
-        } else {
-          doc.fillColor(passed ? '#15803d' : '#dc2626').text(marksObtained.toString(), 440, rowY + 5, { width: 95, align: 'right' });
-          doc.fillColor(passed ? '#15803d' : '#dc2626').text(passed ? 'PASS' : 'FAIL', 540, rowY + 5, { width: 55, align: 'right' });
-        }
-        doc.y += 18;
-      }
-
-      // Exam total row
-      const etMaxTotal = et.examSubjects.reduce((sum, es) => sum + Number(es.maxMarks), 0);
-      const etObtainedTotal = et.examSubjects.reduce((sum, es) => sum + (es.marks[0] ? Number(es.marks[0].marksObtained) : 0), 0);
-      const etPercent = etMaxTotal > 0 ? ((etObtainedTotal / etMaxTotal) * 100).toFixed(1) : '0.0';
-
-      doc.rect(50, doc.y, contentWidth, 18).fill('#f8fafc').stroke(BORDER);
-      doc.fontSize(9).fillColor(PRIMARY).font('Helvetica-Bold').text('TOTAL', 58, doc.y + 5);
-      doc.text(`${etObtainedTotal} / ${etMaxTotal}  (${etPercent}%)`, 300, doc.y + 5, { width: 285, align: 'right' });
-      doc.font('Helvetica');
-      doc.y += 18;
     }
 
-    // GRAND TOTAL
-    doc.moveDown(1);
-    if (doc.y > 700) doc.addPage();
+    function hr(atY, color = BORDER, width = 0.5) {
+      doc.strokeColor(color).lineWidth(width).moveTo(M, atY).lineTo(M + CW, atY).stroke();
+    }
 
-    const grandMax = examTypes.reduce((sum, et) =>
-      sum + et.examSubjects.reduce((s, es) => s + Number(es.maxMarks), 0), 0);
-    const grandObtained = examTypes.reduce((sum, et) =>
-      sum + et.examSubjects.reduce((s, es) => s + (es.marks[0] ? Number(es.marks[0].marksObtained) : 0), 0), 0);
+    // ── HEADER BAND ──────────────────────────────────────────────────────
+    doc.rect(0, 0, PAGE_W, 90).fill(NAVY);
+    doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
+      .text(school?.name || 'School', M, 20, { width: CW, align: 'center' });
+    if (school?.address || school?.contactEmail) {
+      doc.font('Helvetica').fontSize(9).fillColor('#cbd5e1')
+        .text(school.address || school.contactEmail, M, 43, { width: CW, align: 'center' });
+    }
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(ORANGE)
+      .text('STUDENT REPORT CARD', M, 63, { width: CW, align: 'center', characterSpacing: 1.2 });
+
+    y = 110;
+
+    // ── STUDENT INFO CARD ──────────────────────────────────────────────
+    const infoH = 62;
+    doc.roundedRect(M, y, CW, infoH, 6).fillAndStroke(LIGHT, BORDER);
+    const c1 = M + 16, c2 = M + CW * 0.36, c3 = M + CW * 0.68;
+    const r1 = y + 11, r2 = y + 36;
+
+    function field(x, fy, label, value) {
+      doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text(label, x, fy);
+      doc.font('Helvetica-Bold').fontSize(10.5).fillColor(NAVY).text(value || '—', x, fy + 11);
+    }
+    field(c1, r1, 'STUDENT NAME', enrollment.student.name);
+    field(c2, r1, 'ENROLLMENT NO.', enrollment.student.enrollmentNumber);
+    field(c3, r1, 'CLASS / SECTION', `${enrollment.class.name} — ${enrollment.section.name}`);
+    field(c1, r2, 'SESSION', enrollment.session.label);
+    field(c2, r2, 'ROLL NO.', enrollment.rollNumber ? String(enrollment.rollNumber) : '—');
+
+    y += infoH + 22;
+
+    // ── EXAM TYPE TABLES ─────────────────────────────────────────────────
+    for (const et of examTypes) {
+      newPageIfNeeded(100);
+
+      // Section header bar
+      doc.roundedRect(M, y, CW, 24, 4).fill(NAVY);
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff')
+        .text(et.name.toUpperCase(), M + 12, y + 7);
+      if (et.weightagePercent != null) {
+        doc.font('Helvetica').fontSize(8).fillColor('#cbd5e1')
+          .text(`Weightage ${et.weightagePercent}%`, M, y + 8, { width: CW - 14, align: 'right' });
+      }
+      y += 24;
+
+      // Column header row
+      doc.rect(M, y, CW, 20).fill(HEADER_BG);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b');
+      doc.text('SUBJECT', COLS.subject.x + 10, y + 6, { width: COLS.subject.width - 10 });
+      doc.text('MAX', COLS.max.x, y + 6, { width: COLS.max.width, align: 'center' });
+      doc.text('PASS', COLS.pass.x, y + 6, { width: COLS.pass.width, align: 'center' });
+      doc.text('OBTAINED', COLS.obtained.x, y + 6, { width: COLS.obtained.width, align: 'center' });
+      doc.text('STATUS', COLS.status.x, y + 6, { width: COLS.status.width - 10, align: 'center' });
+      y += 20;
+      hr(y, BORDER, 1);
+
+      // Subject rows
+      const rowH = 24;
+      et.examSubjects.forEach((es, idx) => {
+        newPageIfNeeded(rowH + 8);
+
+        const marksObtained = es.marks[0] ? Number(es.marks[0].marksObtained) : null;
+        const pending = marksObtained === null;
+        const passed = !pending && marksObtained >= Number(es.passingMarks);
+
+        const statusColor = pending ? AMBER : passed ? GREEN : RED;
+        const statusBg    = pending ? AMBER_BG : passed ? GREEN_BG : RED_BG;
+        const statusText  = pending ? 'PENDING' : passed ? 'PASS' : 'FAIL';
+
+        // Zebra striping for the row, plus a colored status pill on the right
+        doc.rect(M, y, CW, rowH).fill(idx % 2 === 0 ? '#ffffff' : '#fafbfc');
+
+        doc.font('Helvetica').fontSize(9.5).fillColor(TEXT)
+          .text(es.subject.name, COLS.subject.x + 10, y + 7, { width: COLS.subject.width - 10 });
+        doc.fillColor('#64748b')
+          .text(String(es.maxMarks), COLS.max.x, y + 7, { width: COLS.max.width, align: 'center' })
+          .text(String(es.passingMarks), COLS.pass.x, y + 7, { width: COLS.pass.width, align: 'center' });
+        doc.font('Helvetica-Bold').fillColor(pending ? MUTED : statusColor)
+          .text(pending ? '—' : String(marksObtained), COLS.obtained.x, y + 7, { width: COLS.obtained.width, align: 'center' });
+
+        const pillW = COLS.status.width - 20;
+        const pillX = COLS.status.x + 10;
+        doc.roundedRect(pillX, y + 5, pillW, rowH - 10, 8).fill(statusBg);
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(statusColor)
+          .text(statusText, pillX, y + 9, { width: pillW, align: 'center' });
+
+        y += rowH;
+        hr(y);
+      });
+
+      // Exam total row
+      const etMaxTotal = et.examSubjects.reduce((s, es) => s + Number(es.maxMarks), 0);
+      const etObtainedTotal = et.examSubjects.reduce((s, es) => s + (es.marks[0] ? Number(es.marks[0].marksObtained) : 0), 0);
+      const etPercent = etMaxTotal > 0 ? ((etObtainedTotal / etMaxTotal) * 100).toFixed(1) : '0.0';
+
+      newPageIfNeeded(30);
+      doc.rect(M, y, CW, 26).fill(HEADER_BG);
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(NAVY)
+        .text('TOTAL', COLS.subject.x + 10, y + 8, { width: COLS.subject.width - 10 });
+      doc.text(`${etObtainedTotal} / ${etMaxTotal}`, COLS.obtained.x, y + 8, { width: COLS.obtained.width, align: 'center' });
+      doc.fillColor(ORANGE).text(`${etPercent}%`, COLS.status.x, y + 8, { width: COLS.status.width - 10, align: 'center' });
+      y += 26 + 16;
+    }
+
+    // ── OVERALL RESULT BANNER ───────────────────────────────────────────
+    newPageIfNeeded(54);
+    const grandMax = examTypes.reduce((s, et) => s + et.examSubjects.reduce((x, es) => x + Number(es.maxMarks), 0), 0);
+    const grandObtained = examTypes.reduce((s, et) => s + et.examSubjects.reduce((x, es) => x + (es.marks[0] ? Number(es.marks[0].marksObtained) : 0), 0), 0);
     const grandPercent = grandMax > 0 ? ((grandObtained / grandMax) * 100).toFixed(2) : '0.00';
+    const overallPass = grandMax > 0 && (grandObtained / grandMax) >= 0.33;
 
-    doc.rect(50, doc.y, contentWidth, 30).fill(PRIMARY);
-    doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold').text('OVERALL RESULT', 58, doc.y + 9);
-    doc.text(
-      `${grandObtained} / ${grandMax}  —  ${grandPercent}%`,
-      300, doc.y + 9,
-      { width: 285, align: 'right' }
-    );
-    doc.font('Helvetica');
-    doc.y += 30;
+    doc.roundedRect(M, y, CW, 42, 6).fill(NAVY);
+    doc.font('Helvetica-Bold').fontSize(12).fillColor('#ffffff')
+      .text('OVERALL RESULT', M + 16, y + 15);
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(ORANGE)
+      .text(`${grandObtained} / ${grandMax}   (${grandPercent}%)`, M, y + 15, { width: CW - 90, align: 'right' });
+    doc.roundedRect(M + CW - 74, y + 9, 58, 24, 5).fill(overallPass ? '#16a34a' : '#dc2626');
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff')
+      .text(overallPass ? 'PASS' : 'FAIL', M + CW - 74, y + 16, { width: 58, align: 'center' });
 
-    // FOOTER
-    doc.moveDown(2);
-    doc.fontSize(8).fillColor('#94a3b8').text(
-      `Generated by CampusSafar AMMS  •  ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`,
-      50, doc.y,
-      { align: 'center', width: contentWidth }
-    );
+    y += 42;
+
+    // ── FOOTER (page number + generated date, on every page) ────────────
+    // Drawing this close to the bottom edge would normally trigger pdfkit's
+    // automatic page-break check (it fires whenever text would cross the
+    // page's default bottom margin, even with an explicit y). Zeroing the
+    // margin for this one block stops it from spawning phantom blank pages.
+    const savedBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      hr(FOOTER_Y, BORDER, 0.75);
+      doc.font('Helvetica').fontSize(8).fillColor(MUTED)
+        .text(
+          `Generated by CampusSafar AMMS  •  ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+          M, FOOTER_Y + 10, { width: CW / 2, lineBreak: false }
+        );
+      doc.text(`Page ${i - range.start + 1} of ${range.count}`, M + CW / 2, FOOTER_Y + 10, { width: CW / 2, align: 'right', lineBreak: false });
+    }
+
+    doc.page.margins.bottom = savedBottomMargin;
 
     doc.end();
   });

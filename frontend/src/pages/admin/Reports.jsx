@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import {
   getSessions, getClasses, getSubjects, getExamTypes, getStudents,
+  getAttendanceReport, getMarksReport,
   getAttendanceDefaulters, getMarksDefaulters,
   getClassComparison, getSectionComparison, getStudentProgress,
   getReportCard,
@@ -213,11 +214,10 @@ function AttendanceReport() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['rep-attendance', sessionId, classId, sectionId, fromDate, toDate],
-    queryFn: () => getAttendanceDefaulters({
+    queryFn: () => getAttendanceReport({
       sessionId,
       classId: classId || undefined,
       sectionId: sectionId || undefined,
-      threshold: 0,
       fromDate,
       toDate,
     }).then((r) => r.data.data),
@@ -232,7 +232,7 @@ function AttendanceReport() {
     { key: 'presentDays',         label: 'Present', value: (r) => r.presentDays ?? '-' },
     { key: 'totalDays',           label: 'Total Days', value: (r) => r.totalDays ?? '-' },
     { key: 'attendancePercentage', label: 'Attendance %', value: (r) => r.attendancePercentage != null ? `${r.attendancePercentage}%` : '-' },
-    { key: 'status',              label: 'Status', value: (r) => r.attendancePercentage >= 75 ? 'Regular' : 'Low Attendance' },
+    { key: 'status',              label: 'Status', value: (r) => r.attendancePercentage == null ? 'No Data' : (r.attendancePercentage >= 75 ? 'Regular' : 'Low Attendance') },
   ];
 
   function handleCSV() {
@@ -321,7 +321,7 @@ function AttendanceReport() {
                         return (
                           <td key={c.key} className="px-4 py-3 text-[#374151]">
                             {isStatus ? (
-                              <Badge label={val} variant={val === 'Regular' ? 'success' : 'danger'} />
+                              <Badge label={val} variant={val === 'Regular' ? 'success' : val === 'No Data' ? 'default' : 'danger'} />
                             ) : isPct ? (
                               <span className={parseFloat(val) < 75 ? 'text-red-600 font-semibold' : 'text-green-700 font-semibold'}>{val}</span>
                             ) : val}
@@ -363,14 +363,13 @@ function MarksReport() {
 
   useEffect(() => { setExamTypeId(''); setSubjectId(''); }, [classId]);
 
-  const { data: defaulters, isLoading } = useQuery({
+  const { data: marksRows, isLoading } = useQuery({
     queryKey: ['rep-marks', examTypeId, subjectId, sectionId],
-    queryFn: () => getMarksDefaulters({ examTypeId, subjectId: subjectId || undefined, sectionId: sectionId || undefined }).then((r) => r.data.data),
+    queryFn: () => getMarksReport({ examTypeId, subjectId: subjectId || undefined, sectionId: sectionId || undefined }).then((r) => r.data.data),
     enabled: !!examTypeId,
   });
 
-  // For marks we show all marks, not just defaulters — but we still use the defaulters endpoint, just all data
-  const rows = defaulters || [];
+  const rows = marksRows || [];
 
   const columns = [
     { key: 'studentName',      label: 'Student' },

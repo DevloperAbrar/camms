@@ -20,6 +20,15 @@ const getExamStats = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Stats fetched', stats);
 });
 
+// Marks Report: ALL marks entries for the exam type (pass + fail)
+const getMarksReportList = asyncHandler(async (req, res) => {
+  const { examTypeId, subjectId, sectionId } = req.query;
+  if (!examTypeId) return ApiResponse.error(res, 422, 'examTypeId is required');
+
+  const data = await getMarksReport({ schoolId: req.schoolId, examTypeId, subjectId, sectionId });
+  return ApiResponse.success(res, 200, 'Marks report fetched', data);
+});
+
 const getMarksDefaulters = asyncHandler(async (req, res) => {
   const { examTypeId, subjectId } = req.query;
   if (!examTypeId) return ApiResponse.error(res, 422, 'examTypeId is required');
@@ -202,4 +211,5 @@ module.exports = {
   getAttendanceTrendStats,
   getPerformersList,
   getStudentProgress,
+  getMarksReportList
 };
