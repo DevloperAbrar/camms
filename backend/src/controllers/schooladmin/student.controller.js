@@ -70,20 +70,33 @@ const getStudents = asyncHandler(async (req, res) => {
     ...(Object.keys(enrollmentWhere).length ? { enrollments: { some: enrollmentWhere } } : {}),
   };
 
-  const [students, total] = await Promise.all([
-    prisma.student.findMany({
-      where,
-      skip: (pageNum - 1) * limitNum,
-      take: limitNum,
-      include: {
-        enrollments: {
-          where: enrollmentWhere,
-          include: { class: { select: { name: true } }, section: { select: { name: true } } },
-        },
+  // Roll number lives on Enrollment (a one-to-many relation), so Prisma can't sort the
+  // top-level Student query by it directly. We fetch everything matching the filter,
+  // sort in memory by roll number (numeric-aware) then enrollment number, and paginate after.
+  const allMatching = await prisma.student.findMany({
+    where,
+    include: {
+      enrollments: {
+        where: enrollmentWhere,
+        include: { class: { select: { name: true } }, section: { select: { name: true } } },
       },
-    }),
-    prisma.student.count({ where }),
-  ]);
+    },
+  });
+
+  const toRollNum = (s) => {
+    const roll = s.enrollments?.[0]?.rollNumber;
+    const n = roll !== undefined && roll !== null && roll !== '' ? Number(roll) : NaN;
+    return Number.isNaN(n) ? Infinity : n;
+  };
+
+  allMatching.sort((a, b) => {
+    const diff = toRollNum(a) - toRollNum(b);
+    if (diff !== 0) return diff;
+    return (a.enrollmentNumber || '').localeCompare(b.enrollmentNumber || '');
+  });
+
+  const total = allMatching.length;
+  const students = allMatching.slice((pageNum - 1) * limitNum, (pageNum - 1) * limitNum + limitNum);
 
   return ApiResponse.success(res, 200, 'Students fetched', {
     students,
@@ -148,6 +161,19 @@ const deactivateStudent = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, `Student ${updated.status === 'active' ? 'reactivated' : 'deactivated'}`, updated);
 });
 
+// Permanently removes the student and, via cascade, their enrollments/attendance/marks.
+// Use Deactivate instead when history should be preserved — this cannot be undone.
+const deleteStudent = asyncHandler(async (req, res) => {
+  const student = await prisma.student.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
+  if (!student) return ApiResponse.error(res, 404, 'Student not found');
+
+  await prisma.student.delete({ where: { id: req.params.id } });
+
+  await logAudit({ req, action: 'DELETE_STUDENT', resourceType: 'student', resourceId: req.params.id, metadata: { name: student.name, enrollmentNumber: student.enrollmentNumber } });
+
+  return ApiResponse.success(res, 200, 'Student deleted permanently');
+});
+
 const getCsvTemplate = asyncHandler(async (req, res) => {
   const csv = generateStudentCsvTemplate();
   res.setHeader('Content-Type', 'text/csv');
@@ -201,6 +227,9 @@ const commitCsvUpload = asyncHandler(async (req, res) => {
             parentName: row.parentName,
             parentEmail: row.parentEmail,
             parentPhone: row.parentPhone,
+            secondaryParentPhone: row.secondaryParentPhone,
+            address: row.address,
+            admissionDate: row.admissionDate,
             status: 'active',
           },
         });
@@ -227,4 +256,4 @@ const commitCsvUpload = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 201, `${created} students added`, { created, errors });
 });
 
-module.exports = { createStudent, getStudents, updateStudent, deactivateStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload };
+module.exports = { createStudent, getStudents, updateStudent, deactivateStudent, deleteStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload };

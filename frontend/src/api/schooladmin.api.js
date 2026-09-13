@@ -41,6 +41,7 @@ export const getStudents        = (params) => api.get('/schooladmin/students', {
 export const createStudent      = (data)   => api.post('/schooladmin/students', data);
 export const updateStudent      = (id, data) => api.patch(`/schooladmin/students/${id}`, data);
 export const deactivateStudent  = (id)     => api.post(`/schooladmin/students/${id}/deactivate`);
+export const deleteStudent      = (id)     => api.delete(`/schooladmin/students/${id}`);
 export const getCsvTemplate     = ()       => api.get('/schooladmin/students/csv-template', { responseType: 'blob' });
 export const previewCsvUpload   = (formData) => api.post('/schooladmin/students/csv-preview', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const commitCsvUpload    = (data)   => api.post('/schooladmin/students/csv-commit', data);

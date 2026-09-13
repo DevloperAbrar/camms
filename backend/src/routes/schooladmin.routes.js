@@ -79,6 +79,7 @@ router.post('/students/csv-preview', upload.single('file'), studentController.pr
 router.post('/students/csv-commit', studentController.commitCsvUpload);
 router.patch('/students/:id', studentController.updateStudent);
 router.post('/students/:id/deactivate', studentController.deactivateStudent);
+router.delete('/students/:id', studentController.deleteStudent);
 
 // Promotion / Rollover
 router.get('/promotion/roster', promotionController.getPromotionRoster);

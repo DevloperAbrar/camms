@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Upload, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Pencil, Ban, CheckCircle } from 'lucide-react';
+import { Plus, Search, Upload, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Pencil, Ban, CheckCircle, Trash2 } from 'lucide-react';
 import {
-  getStudents, createStudent, updateStudent, deactivateStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload,
+  getStudents, createStudent, updateStudent, deactivateStudent, deleteStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload,
   getSessions, getClasses,
 } from '../../api/schooladmin.api';
 import Card from '../../components/ui/Card';
@@ -118,6 +118,13 @@ export default function AdminStudents() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-students'] }); setDeactivateTarget(null); },
   });
 
+  const [deleteStudentTarget, setDeleteStudentTarget] = useState(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteStudent,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-students'] }); setDeleteStudentTarget(null); },
+  });
+
   const openEditStudent = (student) => {
     setEditStudentTarget(student);
     editForm.reset({
@@ -206,6 +213,7 @@ export default function AdminStudents() {
           <Button size="sm" variant="ghost" icon={CheckCircle} loading={deactivateMutation.isPending}
             onClick={() => deactivateMutation.mutate(r.id)}>Reactivate</Button>
         )}
+        <Button size="sm" variant="ghost" icon={Trash2} onClick={() => setDeleteStudentTarget(r)} className="text-red-500 hover:text-red-600">Delete</Button>
       </div>
     )},
   ];
@@ -431,8 +439,9 @@ export default function AdminStudents() {
           )}
         </div>
       </Modal>
-            {/* Edit Student */}
-            <Modal open={!!editStudentTarget} onClose={() => { setEditStudentTarget(null); editForm.reset(); }} title={`Edit — ${editStudentTarget?.name || ''}`} size="lg">
+
+      {/* Edit Student */}
+      <Modal open={!!editStudentTarget} onClose={() => { setEditStudentTarget(null); editForm.reset(); }} title={`Edit — ${editStudentTarget?.name || ''}`} size="lg">
         <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editStudentTarget.id, data: d }))} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Full Name" name="name" register={editForm.register} error={editForm.formState.errors.name} required />
@@ -480,6 +489,29 @@ export default function AdminStudents() {
             <Button variant="ghost" onClick={() => setDeactivateTarget(null)}>Cancel</Button>
             <Button variant="danger" loading={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate(deactivateTarget.id)}>
               Confirm Deactivate
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Student (permanent) */}
+      <Modal open={!!deleteStudentTarget} onClose={() => setDeleteStudentTarget(null)} title={`Delete — ${deleteStudentTarget?.name}`} size="sm">
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            This permanently deletes the student along with all their enrollment, attendance and marks records. This cannot be undone.
+          </div>
+          <p className="text-sm text-[#64748b]">
+            If you just want to remove them from active rolls but keep their history, use <span className="font-medium">Deactivate</span> instead.
+          </p>
+          {deleteMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {deleteMutation.error?.response?.data?.message || 'Failed to delete student.'}
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setDeleteStudentTarget(null)}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteStudentTarget.id)}>
+              Delete Permanently
             </Button>
           </div>
         </div>
