@@ -2,7 +2,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
 const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
-const { createStudentSchema } = require('../../validators/schooladmin.validator');
+const { createStudentSchema, updateStudentSchema } = require('../../validators/schooladmin.validator');
 const { generateStudentCsvTemplate, validateStudentCsv } = require('../../services/csv.service');
 
 const createStudent = asyncHandler(async (req, res) => {
@@ -93,6 +93,61 @@ const getStudents = asyncHandler(async (req, res) => {
   });
 });
 
+const updateStudent = asyncHandler(async (req, res) => {
+  const data = updateStudentSchema.parse(req.body);
+  const { rollNumber, ...studentFields } = data;
+
+  const student = await prisma.student.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
+  if (!student) return ApiResponse.error(res, 404, 'Student not found');
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedStudent = await tx.student.update({
+      where: { id: req.params.id },
+      data: {
+        ...studentFields,
+        ...(studentFields.dob ? { dob: new Date(studentFields.dob) } : {}),
+        ...(studentFields.admissionDate ? { admissionDate: new Date(studentFields.admissionDate) } : {}),
+      },
+    });
+
+    if (rollNumber !== undefined) {
+      const activeEnrollment = await tx.enrollment.findFirst({
+        where: { studentId: req.params.id, status: 'active' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (activeEnrollment) {
+        await tx.enrollment.update({ where: { id: activeEnrollment.id }, data: { rollNumber } });
+      }
+    }
+
+    return updatedStudent;
+  });
+
+  await logAudit({ req, action: 'UPDATE_STUDENT', resourceType: 'student', resourceId: updated.id, metadata: data });
+
+  return ApiResponse.success(res, 200, 'Student updated', updated);
+});
+
+// Never hard-delete a student — deactivating preserves their attendance and marks history
+const deactivateStudent = asyncHandler(async (req, res) => {
+  const student = await prisma.student.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
+  if (!student) return ApiResponse.error(res, 404, 'Student not found');
+
+  const updated = await prisma.student.update({
+    where: { id: req.params.id },
+    data: { status: student.status === 'active' ? 'inactive' : 'active' },
+  });
+
+  await logAudit({
+    req,
+    action: updated.status === 'active' ? 'REACTIVATE_STUDENT' : 'DEACTIVATE_STUDENT',
+    resourceType: 'student',
+    resourceId: updated.id,
+  });
+
+  return ApiResponse.success(res, 200, `Student ${updated.status === 'active' ? 'reactivated' : 'deactivated'}`, updated);
+});
+
 const getCsvTemplate = asyncHandler(async (req, res) => {
   const csv = generateStudentCsvTemplate();
   res.setHeader('Content-Type', 'text/csv');
@@ -172,4 +227,4 @@ const commitCsvUpload = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 201, `${created} students added`, { created, errors });
 });
 
-module.exports = { createStudent, getStudents, getCsvTemplate, previewCsvUpload, commitCsvUpload };
+module.exports = { createStudent, getStudents, updateStudent, deactivateStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload };

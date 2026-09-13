@@ -39,11 +39,14 @@ router.use(authenticate, authorize('admin'), enforceTenant, checkSubscriptionAct
 router.post('/sessions', sessionController.createSession);
 router.get('/sessions', sessionController.getSessions);
 router.post('/sessions/:id/activate', sessionController.activateSession);
+router.patch('/sessions/:id', sessionController.updateSession);
+router.delete('/sessions/:id', sessionController.deleteSession);
 
 // Classes
 router.post('/classes', classController.createClass);
 router.get('/classes', classController.getClasses);
 router.delete('/classes/:id', classController.deleteClass);
+router.patch('/classes/:id', classController.updateClass);
 
 // Sections
 router.post('/sections', sectionController.createSection);
@@ -55,6 +58,7 @@ router.post('/subjects', subjectController.createSubject);
 router.get('/subjects', subjectController.getSubjects);
 router.post('/subjects/copy', subjectController.copySubjects);
 router.delete('/subjects/:id', subjectController.deleteSubject);
+router.patch('/subjects/:id', subjectController.updateSubject);
 
 // Faculty
 router.post('/faculty', facultyController.createFaculty);
@@ -62,6 +66,10 @@ router.get('/faculty', facultyController.getFacultyList);
 router.get('/faculty/assignments', facultyController.getFacultyAssignments);
 router.post('/faculty/assignments', facultyController.assignFaculty);
 router.delete('/faculty/assignments/:id', facultyController.removeFacultyAssignment);
+router.patch('/faculty/:id', facultyController.updateFaculty);
+router.post('/faculty/:id/deactivate', facultyController.deactivateFaculty);
+router.post('/faculty/:id/reset-password', facultyController.resetFacultyPassword);
+router.patch('/faculty/assignments/:id', facultyController.updateFacultyAssignment);
 
 // Students
 router.post('/students', studentController.createStudent);
@@ -69,6 +77,8 @@ router.get('/students', studentController.getStudents);
 router.get('/students/csv-template', studentController.getCsvTemplate);
 router.post('/students/csv-preview', upload.single('file'), studentController.previewCsvUpload);
 router.post('/students/csv-commit', studentController.commitCsvUpload);
+router.patch('/students/:id', studentController.updateStudent);
+router.post('/students/:id/deactivate', studentController.deactivateStudent);
 
 // Promotion / Rollover
 router.get('/promotion/roster', promotionController.getPromotionRoster);
@@ -104,5 +114,7 @@ router.patch('/corrections/:id/review', correctionController.reviewCorrectionReq
 router.get('/notifications', notificationController.listMyNotifications);
 router.patch('/notifications/:id/read', notificationController.markNotificationRead);
 router.patch('/notifications/read-all', notificationController.markAllNotificationsRead);
+
+
 
 module.exports = router;

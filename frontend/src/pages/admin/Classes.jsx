@@ -3,11 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Trash2, Copy, Settings2 } from 'lucide-react';
+import { Plus, Trash2, Copy, Settings2, Pencil } from 'lucide-react';
 import {
-  getSessions, getClasses, createClass, deleteClass,
+  getSessions, getClasses, createClass, updateClass, deleteClass,
   createSection, updateSection, deleteSection,
-  getSubjects, createSubject, deleteSubject, copySubjects,
+  getSubjects, createSubject, updateSubject, deleteSubject, copySubjects,
   getFaculty,
 } from '../../api/schooladmin.api';
 import Card from '../../components/ui/Card';
@@ -37,10 +37,12 @@ export default function AdminClasses() {
   const qc = useQueryClient();
   const [sessionId, setSessionId]         = useState('');
   const [showCreate, setShowCreate]       = useState(false);
+  const [editClassTarget, setEditClassTarget] = useState(null);
   const [deleteTarget, setDeleteTarget]   = useState(null);
   const [manageClassId, setManageClassId] = useState(null);
   const [manageTab, setManageTab]         = useState('sections');
   const [copyForm, setCopyForm]           = useState({ fromSessionId: '', fromClassId: '' });
+  const [editSubjectTarget, setEditSubjectTarget] = useState(null);
 
   const { data: sessions, isLoading: loadingSessions } = useQuery({
     queryKey: ['ad-sessions'],
@@ -81,6 +83,8 @@ export default function AdminClasses() {
     reset: resetClass, formState: { errors: classErrors },
   } = useForm({ resolver: zodResolver(classSchema), defaultValues: { sortOrder: 0 } });
 
+  const editClassForm = useForm({ resolver: zodResolver(classSchema) });
+
   const {
     register: registerSection, handleSubmit: handleSectionSubmit,
     reset: resetSection, formState: { errors: sectionErrors },
@@ -90,6 +94,8 @@ export default function AdminClasses() {
     register: registerSubject, handleSubmit: handleSubjectSubmit,
     reset: resetSubject, formState: { errors: subjectErrors },
   } = useForm({ resolver: zodResolver(subjectSchema) });
+
+  const editSubjectForm = useForm({ resolver: zodResolver(subjectSchema) });
 
   useEffect(() => {
     resetSection();
@@ -101,6 +107,11 @@ export default function AdminClasses() {
   const createClassMutation = useMutation({
     mutationFn: (data) => createClass({ ...data, sessionId }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-classes'] }); setShowCreate(false); resetClass({ sortOrder: 0 }); },
+  });
+
+  const updateClassMutation = useMutation({
+    mutationFn: ({ id, data }) => updateClass(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-classes'] }); setEditClassTarget(null); editClassForm.reset(); },
   });
 
   const deleteClassMutation = useMutation({
@@ -132,6 +143,15 @@ export default function AdminClasses() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-subjects', manageClass.sessionId, manageClass.id] }); resetSubject(); },
   });
 
+  const updateSubjectMutation = useMutation({
+    mutationFn: ({ id, data }) => updateSubject(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ad-subjects', manageClass.sessionId, manageClass.id] });
+      setEditSubjectTarget(null);
+      editSubjectForm.reset();
+    },
+  });
+
   const deleteSubjectMutation = useMutation({
     mutationFn: deleteSubject,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ad-subjects', manageClass.sessionId, manageClass.id] }),
@@ -150,12 +170,23 @@ export default function AdminClasses() {
     },
   });
 
+  const openEditClass = (cls) => {
+    setEditClassTarget(cls);
+    editClassForm.reset({ name: cls.name, sortOrder: cls.sortOrder });
+  };
+
+  const openEditSubject = (sub) => {
+    setEditSubjectTarget(sub);
+    editSubjectForm.reset({ name: sub.name, code: sub.code || '' });
+  };
+
   const classColumns = [
     { key: 'name', label: 'Class', render: (r) => <p className="font-semibold text-[#1e293b]">{r.name}</p> },
     { key: 'sortOrder', label: 'Sort Order' },
     { key: 'sections', label: 'Sections', render: (r) => <Badge label={`${r.sections?.length || 0} sections`} variant="navy" /> },
     { key: 'actions', label: 'Actions', render: (r) => (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 flex-wrap">
+        <Button size="sm" variant="ghost" icon={Pencil} onClick={() => openEditClass(r)}>Edit</Button>
         <Button size="sm" variant="ghost" icon={Settings2} onClick={() => setManageClassId(r.id)}>Manage</Button>
         <Button size="sm" variant="ghost" icon={Trash2} className="text-red-500 hover:text-red-600" onClick={() => setDeleteTarget(r)}>Delete</Button>
       </div>
@@ -190,7 +221,7 @@ export default function AdminClasses() {
         emptyMessage={sessionId ? 'No classes in this session yet.' : 'Select a session to view classes.'}
       />
 
-      {/* Add Class Modal */}
+      {/* Add Class */}
       <Modal open={showCreate} onClose={() => { setShowCreate(false); resetClass({ sortOrder: 0 }); }} title="Add Class" size="sm">
         <form onSubmit={handleClassSubmit((d) => createClassMutation.mutate(d))} className="space-y-4">
           <Input label="Class Name" name="name" register={registerClass} error={classErrors.name} required placeholder="e.g. Class 7" />
@@ -209,7 +240,26 @@ export default function AdminClasses() {
         </form>
       </Modal>
 
-      {/* Delete Class Modal */}
+      {/* Edit Class */}
+      <Modal open={!!editClassTarget} onClose={() => { setEditClassTarget(null); editClassForm.reset(); }} title={`Edit — ${editClassTarget?.name || ''}`} size="sm">
+        <form onSubmit={editClassForm.handleSubmit((d) => updateClassMutation.mutate({ id: editClassTarget.id, data: d }))} className="space-y-4">
+          <Input label="Class Name" name="name" register={editClassForm.register} error={editClassForm.formState.errors.name} required />
+          <Input label="Sort Order" name="sortOrder" type="number" register={editClassForm.register} error={editClassForm.formState.errors.sortOrder} />
+
+          {updateClassMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {updateClassMutation.error?.response?.data?.message || 'Failed to update class.'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => { setEditClassTarget(null); editClassForm.reset(); }}>Cancel</Button>
+            <Button type="submit" loading={updateClassMutation.isPending}>Save Changes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Class */}
       <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={`Delete Class: ${deleteTarget?.name}`} size="sm">
         <div className="space-y-4">
           <p className="text-sm text-[#64748b]">This cannot be undone. Classes with enrolled students cannot be deleted.</p>
@@ -227,7 +277,7 @@ export default function AdminClasses() {
         </div>
       </Modal>
 
-      {/* Manage Sections and Subjects Modal */}
+      {/* Manage Sections and Subjects */}
       <Modal open={!!manageClass} onClose={() => setManageClassId(null)} title={`Manage: ${manageClass?.name}`} size="lg">
         {manageClass && (
           <div className="space-y-5">
@@ -306,9 +356,14 @@ export default function AdminClasses() {
                         <p className="text-sm font-semibold text-[#1e293b]">{sub.name}</p>
                         {sub.code && <p className="text-xs text-[#94a3b8]">{sub.code}</p>}
                       </div>
-                      <button onClick={() => deleteSubjectMutation.mutate(sub.id)} className="p-1.5 rounded-lg text-[#94a3b8] hover:bg-red-50 hover:text-red-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEditSubject(sub)} className="p-1.5 rounded-lg text-[#94a3b8] hover:bg-[#f8fafc] hover:text-[#f97316] transition-colors">
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={() => deleteSubjectMutation.mutate(sub.id)} className="p-1.5 rounded-lg text-[#94a3b8] hover:bg-red-50 hover:text-red-500 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -321,7 +376,7 @@ export default function AdminClasses() {
                       <select value={copyForm.fromSessionId} onChange={(e) => setCopyForm({ fromSessionId: e.target.value, fromClassId: '' })}
                         className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
                         <option value="">Select session</option>
-                        {(sessions || []).filter((s) => s.id !== manageClass.sessionId).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        {(sessions || []).map((s) => <option key={s.id} value={s.id}>{s.label}{s.id === manageClass.sessionId ? ' (Current)' : ''}</option>)}
                       </select>
                     </div>
                     <div className="flex flex-col gap-1 flex-1">
@@ -329,7 +384,7 @@ export default function AdminClasses() {
                       <select value={copyForm.fromClassId} onChange={(e) => setCopyForm({ ...copyForm, fromClassId: e.target.value })} disabled={!copyForm.fromSessionId}
                         className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b] disabled:bg-[#f1f5f9]">
                         <option value="">Select class</option>
-                        {(allClasses || []).filter((c) => c.sessionId === copyForm.fromSessionId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {(allClasses || []).filter((c) => c.sessionId === copyForm.fromSessionId && c.id !== manageClass.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
                     <Button icon={Copy} variant="outline" disabled={!copyForm.fromClassId} loading={copySubjectsMutation.isPending}
@@ -345,6 +400,25 @@ export default function AdminClasses() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* Edit Subject */}
+      <Modal open={!!editSubjectTarget} onClose={() => { setEditSubjectTarget(null); editSubjectForm.reset(); }} title={`Edit — ${editSubjectTarget?.name || ''}`} size="sm">
+        <form onSubmit={editSubjectForm.handleSubmit((d) => updateSubjectMutation.mutate({ id: editSubjectTarget.id, data: d }))} className="space-y-4">
+          <Input label="Subject Name" name="name" register={editSubjectForm.register} error={editSubjectForm.formState.errors.name} required />
+          <Input label="Code" name="code" register={editSubjectForm.register} error={editSubjectForm.formState.errors.code} />
+
+          {updateSubjectMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {updateSubjectMutation.error?.response?.data?.message || 'Failed to update subject.'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => { setEditSubjectTarget(null); editSubjectForm.reset(); }}>Cancel</Button>
+            <Button type="submit" loading={updateSubjectMutation.isPending}>Save Changes</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

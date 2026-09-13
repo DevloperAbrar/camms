@@ -3,14 +3,17 @@ import api from './axios';
 // Sessions
 export const getSessions    = ()     => api.get('/schooladmin/sessions');
 export const createSession  = (data) => api.post('/schooladmin/sessions', data);
+export const updateSession  = (id, data) => api.patch(`/schooladmin/sessions/${id}`, data);
 export const activateSession= (id)   => api.post(`/schooladmin/sessions/${id}/activate`);
+export const deleteSession  = (id)   => api.delete(`/schooladmin/sessions/${id}`);
 
 // Classes
 export const getClasses     = ()     => api.get('/schooladmin/classes');
 export const createClass    = (data) => api.post('/schooladmin/classes', data);
+export const updateClass    = (id, data) => api.patch(`/schooladmin/classes/${id}`, data);
 export const deleteClass    = (id)   => api.delete(`/schooladmin/classes/${id}`);
 
-// Sections
+//section
 export const createSection  = (data) => api.post('/schooladmin/sections', data);
 export const updateSection  = (id, data) => api.patch(`/schooladmin/sections/${id}`, data);
 export const deleteSection  = (id)   => api.delete(`/schooladmin/sections/${id}`);
@@ -18,19 +21,26 @@ export const deleteSection  = (id)   => api.delete(`/schooladmin/sections/${id}`
 // Subjects
 export const getSubjects    = (params) => api.get('/schooladmin/subjects', { params });
 export const createSubject  = (data)   => api.post('/schooladmin/subjects', data);
+export const updateSubject  = (id, data) => api.patch(`/schooladmin/subjects/${id}`, data);
 export const copySubjects   = (data)   => api.post('/schooladmin/subjects/copy', data);
 export const deleteSubject  = (id)     => api.delete(`/schooladmin/subjects/${id}`);
 
 // Faculty
 export const getFaculty         = ()     => api.get('/schooladmin/faculty');
 export const createFaculty      = (data) => api.post('/schooladmin/faculty', data);
+export const updateFaculty      = (id, data) => api.patch(`/schooladmin/faculty/${id}`, data);
+export const deactivateFaculty  = (id)   => api.post(`/schooladmin/faculty/${id}/deactivate`);
+export const resetFacultyPassword = (id) => api.post(`/schooladmin/faculty/${id}/reset-password`);
 export const getFacultyAssignments = ()  => api.get('/schooladmin/faculty/assignments');
 export const assignFaculty      = (data) => api.post('/schooladmin/faculty/assignments', data);
 export const removeFacultyAssignment = (id) => api.delete(`/schooladmin/faculty/assignments/${id}`);
+export const updateFacultyAssignment = (id, data) => api.patch(`/schooladmin/faculty/assignments/${id}`, data);
 
 // Students
 export const getStudents        = (params) => api.get('/schooladmin/students', { params });
 export const createStudent      = (data)   => api.post('/schooladmin/students', data);
+export const updateStudent      = (id, data) => api.patch(`/schooladmin/students/${id}`, data);
+export const deactivateStudent  = (id)     => api.post(`/schooladmin/students/${id}/deactivate`);
 export const getCsvTemplate     = ()       => api.get('/schooladmin/students/csv-template', { responseType: 'blob' });
 export const previewCsvUpload   = (formData) => api.post('/schooladmin/students/csv-preview', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const commitCsvUpload    = (data)   => api.post('/schooladmin/students/csv-commit', data);

@@ -27,6 +27,7 @@ router.patch('/schools/:id', schoolController.updateSchool);
 router.post('/schools/:id/suspend', schoolController.suspendSchool);
 router.post('/schools/:id/reactivate', schoolController.reactivateSchool);
 router.patch('/schools/:id/plan', schoolController.changeSchoolPlan);
+router.post('/schools/:id/reset-admin-password', schoolController.resetAdminPassword);
 router.post('/schools/:id/impersonate', schoolController.impersonateSchoolAdmin);
 
 // Plans

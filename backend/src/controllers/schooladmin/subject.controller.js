@@ -2,7 +2,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
 const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
-const { createSubjectSchema, copySubjectsSchema } = require('../../validators/schooladmin.validator');
+const { createSubjectSchema, updateSubjectSchema, copySubjectsSchema } = require('../../validators/schooladmin.validator');
 
 const createSubject = asyncHandler(async (req, res) => {
   const data = createSubjectSchema.parse(req.body);
@@ -24,6 +24,19 @@ const getSubjects = asyncHandler(async (req, res) => {
   });
 
   return ApiResponse.success(res, 200, 'Subjects fetched', subjects);
+});
+
+const updateSubject = asyncHandler(async (req, res) => {
+  const data = updateSubjectSchema.parse(req.body);
+
+  const subject = await prisma.subject.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
+  if (!subject) return ApiResponse.error(res, 404, 'Subject not found');
+
+  const updated = await prisma.subject.update({ where: { id: req.params.id }, data });
+
+  await logAudit({ req, action: 'UPDATE_SUBJECT', resourceType: 'subject', resourceId: updated.id, metadata: data });
+
+  return ApiResponse.success(res, 200, 'Subject updated', updated);
 });
 
 // "Copy subjects from previous session" — avoids re-typing the same list every year
@@ -57,4 +70,4 @@ const deleteSubject = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Subject deleted');
 });
 
-module.exports = { createSubject, getSubjects, copySubjects, deleteSubject };
+module.exports = { createSubject, getSubjects, updateSubject, copySubjects, deleteSubject };

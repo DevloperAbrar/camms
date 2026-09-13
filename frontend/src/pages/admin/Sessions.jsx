@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, CheckCircle2, CalendarDays } from 'lucide-react';
-import { getSessions, createSession, activateSession } from '../../api/schooladmin.api';
+import { Plus, CheckCircle2, CalendarDays, Pencil, Trash2 } from 'lucide-react';
+import { getSessions, createSession, updateSession, activateSession, deleteSession } from '../../api/schooladmin.api';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Badge from '../../components/ui/Badge';
@@ -19,19 +19,27 @@ const schema = z.object({
 
 export default function AdminSessions() {
   const qc = useQueryClient();
-  const [showCreate, setShowCreate]     = useState(false);
+  const [showCreate, setShowCreate]       = useState(false);
+  const [editSession, setEditSession]     = useState(null);
   const [activateModal, setActivateModal] = useState(null);
+  const [deleteModal, setDeleteModal]     = useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['ad-sessions'],
     queryFn: () => getSessions().then((r) => r.data.data),
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm({ resolver: zodResolver(schema) });
+  const createForm = useForm({ resolver: zodResolver(schema) });
+  const editForm   = useForm({ resolver: zodResolver(schema) });
 
   const createMutation = useMutation({
     mutationFn: createSession,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-sessions'] }); setShowCreate(false); reset(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-sessions'] }); setShowCreate(false); createForm.reset(); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => updateSession(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-sessions'] }); setEditSession(null); editForm.reset(); },
   });
 
   const activateMutation = useMutation({
@@ -43,7 +51,23 @@ export default function AdminSessions() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteSession,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-sessions'] }); setDeleteModal(null); },
+  });
+
   const sessions = data || [];
+
+  const toDateInput = (d) => new Date(d).toISOString().slice(0, 10);
+
+  const openEdit = (session) => {
+    setEditSession(session);
+    editForm.reset({
+      label: session.label,
+      startDate: toDateInput(session.startDate),
+      endDate: toDateInput(session.endDate),
+    });
+  };
 
   const columns = [
     { key: 'label', label: 'Session', render: (r) => (
@@ -60,11 +84,15 @@ export default function AdminSessions() {
       r.isActive ? <Badge label="Active" variant="success" /> : <Badge label="Read-only" variant="default" />
     )},
     { key: 'actions', label: 'Actions', render: (r) => (
-      !r.isActive && (
-        <Button size="sm" variant="ghost" icon={CheckCircle2} onClick={() => setActivateModal(r)}>
-          Activate
-        </Button>
-      )
+      <div className="flex items-center gap-1 flex-wrap">
+        <Button size="sm" variant="ghost" icon={Pencil} onClick={() => openEdit(r)}>Edit</Button>
+        {!r.isActive && (
+          <>
+            <Button size="sm" variant="ghost" icon={CheckCircle2} onClick={() => setActivateModal(r)}>Activate</Button>
+            <Button size="sm" variant="ghost" icon={Trash2} onClick={() => setDeleteModal(r)} className="text-red-500 hover:text-red-600">Delete</Button>
+          </>
+        )}
+      </div>
     )},
   ];
 
@@ -80,12 +108,13 @@ export default function AdminSessions() {
 
       <Table columns={columns} data={sessions} loading={isLoading} emptyMessage="No academic sessions yet. Create one to get started." />
 
-      <Modal open={showCreate} onClose={() => { setShowCreate(false); reset(); }} title="Create Academic Session" size="sm">
-        <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
-          <Input label="Session Label" name="label" register={register} error={errors.label} required placeholder="e.g. 2026-2027" />
+      {/* Create */}
+      <Modal open={showCreate} onClose={() => { setShowCreate(false); createForm.reset(); }} title="Create Academic Session" size="sm">
+        <form onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+          <Input label="Session Label" name="label" register={createForm.register} error={createForm.formState.errors.label} required placeholder="e.g. 2026-2027" />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Start Date" name="startDate" type="date" register={register} error={errors.startDate} required />
-            <Input label="End Date"   name="endDate"   type="date" register={register} error={errors.endDate}   required />
+            <Input label="Start Date" name="startDate" type="date" register={createForm.register} error={createForm.formState.errors.startDate} required />
+            <Input label="End Date"   name="endDate"   type="date" register={createForm.register} error={createForm.formState.errors.endDate}   required />
           </div>
 
           {createMutation.isError && (
@@ -95,12 +124,35 @@ export default function AdminSessions() {
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => { setShowCreate(false); reset(); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setShowCreate(false); createForm.reset(); }}>Cancel</Button>
             <Button type="submit" loading={createMutation.isPending}>Create Session</Button>
           </div>
         </form>
       </Modal>
 
+      {/* Edit */}
+      <Modal open={!!editSession} onClose={() => { setEditSession(null); editForm.reset(); }} title={`Edit — ${editSession?.label || ''}`} size="sm">
+        <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editSession.id, data: d }))} className="space-y-4">
+          <Input label="Session Label" name="label" register={editForm.register} error={editForm.formState.errors.label} required />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Start Date" name="startDate" type="date" register={editForm.register} error={editForm.formState.errors.startDate} required />
+            <Input label="End Date"   name="endDate"   type="date" register={editForm.register} error={editForm.formState.errors.endDate}   required />
+          </div>
+
+          {updateMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {updateMutation.error?.response?.data?.message || 'Failed to update session.'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => { setEditSession(null); editForm.reset(); }}>Cancel</Button>
+            <Button type="submit" loading={updateMutation.isPending}>Save Changes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Activate */}
       <Modal open={!!activateModal} onClose={() => setActivateModal(null)} title={`Activate: ${activateModal?.label}`} size="sm">
         <div className="space-y-4">
           <p className="text-sm text-[#64748b]">
@@ -111,6 +163,26 @@ export default function AdminSessions() {
             <Button variant="ghost" onClick={() => setActivateModal(null)}>Cancel</Button>
             <Button loading={activateMutation.isPending} onClick={() => activateMutation.mutate(activateModal.id)}>
               Confirm Activate
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete */}
+      <Modal open={!!deleteModal} onClose={() => setDeleteModal(null)} title={`Delete — ${deleteModal?.label}`} size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-[#64748b]">
+            This can only be removed if it has no classes or enrolled students yet. This action cannot be undone.
+          </p>
+          {deleteMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {deleteMutation.error?.response?.data?.message || 'Failed to delete session.'}
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setDeleteModal(null)}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteModal.id)}>
+              Confirm Delete
             </Button>
           </div>
         </div>

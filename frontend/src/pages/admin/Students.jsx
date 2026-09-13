@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Upload, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Upload, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Pencil, Ban, CheckCircle } from 'lucide-react';
 import {
-  getStudents, createStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload,
+  getStudents, createStudent, updateStudent, deactivateStudent, getCsvTemplate, previewCsvUpload, commitCsvUpload,
   getSessions, getClasses,
 } from '../../api/schooladmin.api';
 import Card from '../../components/ui/Card';
@@ -14,6 +14,19 @@ import Input from '../../components/ui/Input';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+
+const editStudentSchema = z.object({
+  name: z.string().min(2, 'Name required'),
+  dob: z.string().optional(),
+  gender: z.string().optional(),
+  parentName: z.string().optional(),
+  parentEmail: z.string().email('Invalid email').optional().or(z.literal('')),
+  parentPhone: z.string().optional(),
+  secondaryParentPhone: z.string().optional(),
+  address: z.string().optional(),
+  admissionDate: z.string().optional(),
+  rollNumber: z.string().optional(),
+});
 
 const studentSchema = z.object({
   name: z.string().min(2, 'Name required'),
@@ -87,6 +100,39 @@ export default function AdminStudents() {
   const totalPages = studentsData?.totalPages || 1;
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm({ resolver: zodResolver(studentSchema) });
+  const [editStudentTarget, setEditStudentTarget] = useState(null);
+  const [deactivateTarget, setDeactivateTarget]   = useState(null);
+
+  const editForm = useForm({ resolver: zodResolver(editStudentSchema) });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => {
+      const payload = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== '' && v !== undefined));
+      return updateStudent(id, payload);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-students'] }); setEditStudentTarget(null); editForm.reset(); },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: deactivateStudent,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ad-students'] }); setDeactivateTarget(null); },
+  });
+
+  const openEditStudent = (student) => {
+    setEditStudentTarget(student);
+    editForm.reset({
+      name: student.name,
+      dob: student.dob ? student.dob.slice(0, 10) : '',
+      gender: student.gender || '',
+      parentName: student.parentName || '',
+      parentEmail: student.parentEmail || '',
+      parentPhone: student.parentPhone || '',
+      secondaryParentPhone: student.secondaryParentPhone || '',
+      address: student.address || '',
+      admissionDate: student.admissionDate ? student.admissionDate.slice(0, 10) : '',
+      rollNumber: student.enrollments?.[0]?.rollNumber || '',
+    });
+  };
   const formSessionId = watch('sessionId');
   const formClassId   = watch('classId');
   const formClassesForSession = (classes || []).filter((c) => c.sessionId === formSessionId);
@@ -150,6 +196,17 @@ export default function AdminStudents() {
     { key: 'parentPhone', label: 'Contact' },
     { key: 'status', label: 'Status', render: (r) => (
       <Badge label={r.status.charAt(0).toUpperCase() + r.status.slice(1)} variant={r.status === 'active' ? 'success' : 'default'} />
+    )},
+    { key: 'actions', label: 'Actions', render: (r) => (
+      <div className="flex items-center gap-1 flex-wrap">
+        <Button size="sm" variant="ghost" icon={Pencil} onClick={() => openEditStudent(r)}>Edit</Button>
+        {r.status === 'active' ? (
+          <Button size="sm" variant="ghost" icon={Ban} onClick={() => setDeactivateTarget(r)} className="text-red-500 hover:text-red-600">Deactivate</Button>
+        ) : (
+          <Button size="sm" variant="ghost" icon={CheckCircle} loading={deactivateMutation.isPending}
+            onClick={() => deactivateMutation.mutate(r.id)}>Reactivate</Button>
+        )}
+      </div>
     )},
   ];
 
@@ -372,6 +429,59 @@ export default function AdminStudents() {
               <Button onClick={closeUploadModal}>Done</Button>
             </div>
           )}
+        </div>
+      </Modal>
+            {/* Edit Student */}
+            <Modal open={!!editStudentTarget} onClose={() => { setEditStudentTarget(null); editForm.reset(); }} title={`Edit — ${editStudentTarget?.name || ''}`} size="lg">
+        <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editStudentTarget.id, data: d }))} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Full Name" name="name" register={editForm.register} error={editForm.formState.errors.name} required />
+            <Input label="Roll Number" name="rollNumber" register={editForm.register} error={editForm.formState.errors.rollNumber} />
+            <Input label="Date of Birth" name="dob" type="date" register={editForm.register} error={editForm.formState.errors.dob} />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[#374151]">Gender</label>
+              <select {...editForm.register('gender')} className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <Input label="Admission Date" name="admissionDate" type="date" register={editForm.register} error={editForm.formState.errors.admissionDate} />
+            <Input label="Parent Name" name="parentName" register={editForm.register} error={editForm.formState.errors.parentName} />
+            <Input label="Parent Email" name="parentEmail" type="email" register={editForm.register} error={editForm.formState.errors.parentEmail} />
+            <Input label="Parent Phone" name="parentPhone" register={editForm.register} error={editForm.formState.errors.parentPhone} />
+            <Input label="Secondary Contact" name="secondaryParentPhone" register={editForm.register} error={editForm.formState.errors.secondaryParentPhone} />
+            <Input label="Address" name="address" register={editForm.register} error={editForm.formState.errors.address} className="sm:col-span-2" />
+          </div>
+
+          <p className="text-xs text-[#94a3b8]">Enrollment number and class/section transfer aren't editable here — use Promotion for moving a student between classes.</p>
+
+          {updateMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {updateMutation.error?.response?.data?.message || 'Failed to update student.'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => { setEditStudentTarget(null); editForm.reset(); }}>Cancel</Button>
+            <Button type="submit" loading={updateMutation.isPending}>Save Changes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Deactivate Student */}
+      <Modal open={!!deactivateTarget} onClose={() => setDeactivateTarget(null)} title={`Deactivate — ${deactivateTarget?.name}`} size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-[#64748b]">
+            This marks the student inactive. Their attendance and marks history stays intact, and you can reactivate anytime.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setDeactivateTarget(null)}>Cancel</Button>
+            <Button variant="danger" loading={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate(deactivateTarget.id)}>
+              Confirm Deactivate
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

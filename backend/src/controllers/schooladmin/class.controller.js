@@ -2,7 +2,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
 const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
-const { createClassSchema } = require('../../validators/schooladmin.validator');
+const { createClassSchema, updateClassSchema } = require('../../validators/schooladmin.validator');
 
 const createClass = asyncHandler(async (req, res) => {
   const data = createClassSchema.parse(req.body);
@@ -28,6 +28,19 @@ const getClasses = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Classes fetched', classes);
 });
 
+const updateClass = asyncHandler(async (req, res) => {
+  const data = updateClassSchema.parse(req.body);
+
+  const cls = await prisma.class.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
+  if (!cls) return ApiResponse.error(res, 404, 'Class not found');
+
+  const updated = await prisma.class.update({ where: { id: req.params.id }, data });
+
+  await logAudit({ req, action: 'UPDATE_CLASS', resourceType: 'class', resourceId: updated.id, metadata: data });
+
+  return ApiResponse.success(res, 200, 'Class updated', updated);
+});
+
 const deleteClass = asyncHandler(async (req, res) => {
   const enrollmentExists = await prisma.enrollment.findFirst({ where: { classId: req.params.id } });
   if (enrollmentExists) {
@@ -40,4 +53,4 @@ const deleteClass = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Class deleted');
 });
 
-module.exports = { createClass, getClasses, deleteClass };
+module.exports = { createClass, getClasses, updateClass, deleteClass };

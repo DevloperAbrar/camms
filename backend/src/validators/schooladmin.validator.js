@@ -6,6 +6,12 @@ const createSessionSchema = z.object({
   endDate: z.string(),
 });
 
+const updateSessionSchema = z.object({
+  label: z.string().min(4).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
 const createClassSchema = z.object({
   sessionId: z.string().uuid(),
   name: z.string().min(1),
@@ -37,6 +43,11 @@ const createFacultySchema = z.object({
   email: z.string().email(),
   usePasswordLogin: z.boolean().default(false),
   password: z.string().min(6).optional(),
+});
+
+const updateFacultySchema = z.object({
+  name: z.string().min(2).optional(),
+  status: z.enum(['active', 'inactive']).optional(),
 });
 
 const assignFacultySchema = z.object({
@@ -78,14 +89,51 @@ const promoteStudentsSchema = z.object({
   ).min(1),
 });
 
+const updateClassSchema = z.object({
+  name: z.string().min(1).optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+const updateSubjectSchema = z.object({
+  name: z.string().min(1).optional(),
+  code: z.string().optional(),
+});
+
+const updateStudentSchema = z.object({
+  name: z.string().min(2).optional(),
+  dob: z.string().optional(),
+  gender: z.string().optional(),
+  parentName: z.string().optional(),
+  parentEmail: z.string().email().optional(),
+  parentPhone: z.string().optional(),
+  secondaryParentPhone: z.string().optional(),
+  address: z.string().optional(),
+  admissionDate: z.string().optional(),
+  rollNumber: z.string().optional(),
+});
+
+const updateFacultyAssignmentSchema = z.object({
+  facultyId: z.string().uuid().optional(),
+  classId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+  subjectId: z.string().uuid().optional(),
+  sessionId: z.string().uuid().optional(),
+});
+
 module.exports = {
   createSessionSchema,
+  updateSessionSchema,
   createClassSchema,
   createSectionSchema,
   createSubjectSchema,
   copySubjectsSchema,
   createFacultySchema,
+  updateFacultySchema,
   assignFacultySchema,
   createStudentSchema,
   promoteStudentsSchema,
+  updateClassSchema,
+  updateSubjectSchema,
+  updateStudentSchema,
+  updateFacultyAssignmentSchema
 };

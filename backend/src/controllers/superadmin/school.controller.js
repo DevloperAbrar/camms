@@ -3,6 +3,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
 const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
+const { generateTempPassword } = require('../../utils/generatePassword');
 const { listSchools, getSchoolWithSubscription } = require('../../services/school.service');
 const {
   createSchoolSchema,
@@ -14,10 +15,18 @@ const {
 const createSchool = asyncHandler(async (req, res) => {
   const data = createSchoolSchema.parse(req.body);
 
-  const existing = await prisma.school.findUnique({ where: { code: data.code } });
-  if (existing) {
+  const existingCode = await prisma.school.findUnique({ where: { code: data.code } });
+  if (existingCode) {
     return ApiResponse.error(res, 409, 'A school with this code already exists');
   }
+
+  const existingUser = await prisma.user.findUnique({ where: { email: data.contactEmail } });
+  if (existingUser) {
+    return ApiResponse.error(res, 409, 'A user with this contact email already exists');
+  }
+
+  const adminPassword = generateTempPassword();
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   const result = await prisma.$transaction(async (tx) => {
     const school = await tx.school.create({
@@ -43,7 +52,7 @@ const createSchool = asyncHandler(async (req, res) => {
       },
     });
 
-    // Seed the school's first academic session and its first admin invite slot
+    // Seed the school's first academic session
     const session = await tx.academicSession.create({
       data: {
         schoolId: school.id,
@@ -54,7 +63,19 @@ const createSchool = asyncHandler(async (req, res) => {
       },
     });
 
-    return { school, subscription, session };
+    // Create the School Admin login for this school
+    const admin = await tx.user.create({
+      data: {
+        email: data.contactEmail,
+        name: `${data.name} Admin`,
+        role: 'admin',
+        passwordHash: adminPasswordHash,
+        schoolId: school.id,
+        status: 'active',
+      },
+    });
+
+    return { school, subscription, session, admin };
   });
 
   await logAudit({
@@ -65,7 +86,13 @@ const createSchool = asyncHandler(async (req, res) => {
     metadata: { name: data.name, code: data.code },
   });
 
-  return ApiResponse.success(res, 201, 'School onboarded successfully', result);
+  return ApiResponse.success(res, 201, 'School onboarded successfully', {
+    school: result.school,
+    subscription: result.subscription,
+    session: result.session,
+    admin: { id: result.admin.id, email: result.admin.email, name: result.admin.name },
+    adminPassword,
+  });
 });
 
 const getSchools = asyncHandler(async (req, res) => {
@@ -154,6 +181,33 @@ const changeSchoolPlan = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Plan changed successfully', updated);
 });
 
+// Generates a fresh temporary password for the school's admin account
+const resetAdminPassword = asyncHandler(async (req, res) => {
+  const admin = await prisma.user.findFirst({
+    where: { schoolId: req.params.id, role: 'admin' },
+  });
+
+  if (!admin) return ApiResponse.error(res, 404, 'No admin account found for this school');
+
+  const newPassword = generateTempPassword();
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  await prisma.user.update({ where: { id: admin.id }, data: { passwordHash } });
+
+  await logAudit({
+    req,
+    action: 'RESET_SCHOOL_ADMIN_PASSWORD',
+    resourceType: 'user',
+    resourceId: admin.id,
+    metadata: { schoolId: req.params.id },
+  });
+
+  return ApiResponse.success(res, 200, 'Admin password reset', {
+    email: admin.email,
+    password: newPassword,
+  });
+});
+
 // Time-boxed, audit-logged impersonation for support cases
 const impersonateSchoolAdmin = asyncHandler(async (req, res) => {
   const { signToken } = require('../../utils/jwt');
@@ -197,5 +251,6 @@ module.exports = {
   suspendSchool,
   reactivateSchool,
   changeSchoolPlan,
+  resetAdminPassword,
   impersonateSchoolAdmin,
 };

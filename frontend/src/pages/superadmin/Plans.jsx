@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Users, UserCheck, BookOpen, IndianRupee, Trash2 } from 'lucide-react';
-import { getPlans, createPlan } from '../../api/superadmin.api';
+import { Plus, Users, UserCheck, BookOpen, IndianRupee, Pencil, Trash2 } from 'lucide-react';
+import { getPlans, createPlan, updatePlan, deletePlan } from '../../api/superadmin.api';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -17,9 +17,14 @@ const schema = z.object({
   maxClasses:  z.coerce.number().min(1),
   price:       z.coerce.number().min(0),
   billingCycle: z.enum(['monthly', 'yearly']),
+  features: z.object({
+    smsAlerts: z.boolean().optional(),
+    pdfReportCards: z.boolean().optional(),
+    advancedAnalytics: z.boolean().optional(),
+  }).optional(),
 });
 
-function PlanCard({ plan }) {
+function PlanCard({ plan, onEdit, onDelete }) {
   return (
     <Card className="flex flex-col gap-4 hover:border-[#f97316] hover:shadow-md transition-all">
       <div className="flex items-start justify-between">
@@ -51,7 +56,6 @@ function PlanCard({ plan }) {
         </div>
       </div>
 
-      {/* Feature flags */}
       {plan.features && typeof plan.features === 'object' && (
         <div className="flex flex-wrap gap-2">
           {Object.entries(plan.features).map(([key, val]) => (
@@ -61,6 +65,11 @@ function PlanCard({ plan }) {
           ))}
         </div>
       )}
+
+      <div className="flex gap-2 pt-2 border-t border-[#f1f5f9]">
+        <Button size="sm" variant="ghost" icon={Pencil} onClick={() => onEdit(plan)} className="flex-1">Edit</Button>
+        <Button size="sm" variant="ghost" icon={Trash2} onClick={() => onDelete(plan)} className="flex-1 text-red-500 hover:text-red-600">Delete</Button>
+      </div>
     </Card>
   );
 }
@@ -68,21 +77,72 @@ function PlanCard({ plan }) {
 export default function SAPlans() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [editPlan, setEditPlan]     = useState(null);
+  const [deletePlanModal, setDeletePlanModal] = useState(null);
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ['sa-plans'],
     queryFn: () => getPlans().then((r) => r.data.data),
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm({
+  const createForm = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { billingCycle: 'yearly' },
+    defaultValues: { billingCycle: 'yearly', features: { smsAlerts: false, pdfReportCards: false, advancedAnalytics: false } },
   });
+
+  const editForm = useForm({ resolver: zodResolver(schema) });
 
   const createMutation = useMutation({
     mutationFn: createPlan,
-    onSuccess: () => { qc.invalidateQueries(['sa-plans']); setShowCreate(false); reset(); },
+    onSuccess: () => { qc.invalidateQueries(['sa-plans']); setShowCreate(false); createForm.reset(); },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => updatePlan(id, data),
+    onSuccess: () => { qc.invalidateQueries(['sa-plans']); setEditPlan(null); editForm.reset(); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deletePlan,
+    onSuccess: () => { qc.invalidateQueries(['sa-plans']); setDeletePlanModal(null); },
+  });
+
+  const openEdit = (plan) => {
+    setEditPlan(plan);
+    editForm.reset({
+      name: plan.name,
+      maxStudents: plan.maxStudents,
+      maxFaculty: plan.maxFaculty,
+      maxClasses: plan.maxClasses,
+      price: Number(plan.price),
+      billingCycle: plan.billingCycle,
+      features: {
+        smsAlerts: !!plan.features?.smsAlerts,
+        pdfReportCards: !!plan.features?.pdfReportCards,
+        advancedAnalytics: !!plan.features?.advancedAnalytics,
+      },
+    });
+  };
+
+  const renderFeatureCheckboxes = (form) => (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-[#374151]">Features</label>
+      <div className="flex flex-wrap gap-4">
+        <label className="flex items-center gap-2 text-sm text-[#374151]">
+          <input type="checkbox" {...form.register('features.smsAlerts')} className="rounded border-[#e2e8f0]" />
+          SMS Alerts
+        </label>
+        <label className="flex items-center gap-2 text-sm text-[#374151]">
+          <input type="checkbox" {...form.register('features.pdfReportCards')} className="rounded border-[#e2e8f0]" />
+          PDF Report Cards
+        </label>
+        <label className="flex items-center gap-2 text-sm text-[#374151]">
+          <input type="checkbox" {...form.register('features.advancedAnalytics')} className="rounded border-[#e2e8f0]" />
+          Advanced Analytics
+        </label>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -109,29 +169,33 @@ export default function SAPlans() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plans.map((plan) => <PlanCard key={plan.id} plan={plan} />)}
+          {plans.map((plan) => (
+            <PlanCard key={plan.id} plan={plan} onEdit={openEdit} onDelete={setDeletePlanModal} />
+          ))}
         </div>
       )}
 
       {/* Create Plan Modal */}
-      <Modal open={showCreate} onClose={() => { setShowCreate(false); reset(); }} title="Create Subscription Plan" size="md">
-        <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
-          <Input label="Plan Name"       name="name"        register={register} error={errors.name}        required placeholder="e.g. Standard" />
-          <Input label="Price (₹)"       name="price"       register={register} error={errors.price}       required type="number" placeholder="9999" />
+      <Modal open={showCreate} onClose={() => { setShowCreate(false); createForm.reset(); }} title="Create Subscription Plan" size="md">
+        <form onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+          <Input label="Plan Name" name="name"  register={createForm.register} error={createForm.formState.errors.name}  required placeholder="e.g. Standard" />
+          <Input label="Price (₹)" name="price" register={createForm.register} error={createForm.formState.errors.price} required type="number" placeholder="9999" />
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-[#374151]">Billing Cycle</label>
-            <select {...register('billingCycle')} className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white">
+            <select {...createForm.register('billingCycle')} className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white">
               <option value="yearly">Yearly</option>
               <option value="monthly">Monthly</option>
             </select>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <Input label="Max Students" name="maxStudents" register={register} error={errors.maxStudents} required type="number" placeholder="500" />
-            <Input label="Max Faculty"  name="maxFaculty"  register={register} error={errors.maxFaculty}  required type="number" placeholder="30"  />
-            <Input label="Max Classes"  name="maxClasses"  register={register} error={errors.maxClasses}  required type="number" placeholder="15"  />
+            <Input label="Max Students" name="maxStudents" register={createForm.register} error={createForm.formState.errors.maxStudents} required type="number" placeholder="500" />
+            <Input label="Max Faculty"  name="maxFaculty"  register={createForm.register} error={createForm.formState.errors.maxFaculty}  required type="number" placeholder="30"  />
+            <Input label="Max Classes"  name="maxClasses"  register={createForm.register} error={createForm.formState.errors.maxClasses}  required type="number" placeholder="15"  />
           </div>
+
+          {renderFeatureCheckboxes(createForm)}
 
           {createMutation.isError && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
@@ -140,10 +204,65 @@ export default function SAPlans() {
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => { setShowCreate(false); reset(); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setShowCreate(false); createForm.reset(); }}>Cancel</Button>
             <Button type="submit" loading={createMutation.isPending}>Create Plan</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Plan Modal */}
+      <Modal open={!!editPlan} onClose={() => { setEditPlan(null); editForm.reset(); }} title={`Edit — ${editPlan?.name || ''}`} size="md">
+        <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editPlan.id, data: d }))} className="space-y-4">
+          <Input label="Plan Name" name="name"  register={editForm.register} error={editForm.formState.errors.name}  required />
+          <Input label="Price (₹)" name="price" register={editForm.register} error={editForm.formState.errors.price} required type="number" />
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[#374151]">Billing Cycle</label>
+            <select {...editForm.register('billingCycle')} className="px-3 py-2.5 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white">
+              <option value="yearly">Yearly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Max Students" name="maxStudents" register={editForm.register} error={editForm.formState.errors.maxStudents} required type="number" />
+            <Input label="Max Faculty"  name="maxFaculty"  register={editForm.register} error={editForm.formState.errors.maxFaculty}  required type="number" />
+            <Input label="Max Classes"  name="maxClasses"  register={editForm.register} error={editForm.formState.errors.maxClasses}  required type="number" />
+          </div>
+
+          {renderFeatureCheckboxes(editForm)}
+
+          {updateMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {updateMutation.error?.response?.data?.message || 'Failed to update plan.'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => { setEditPlan(null); editForm.reset(); }}>Cancel</Button>
+            <Button type="submit" loading={updateMutation.isPending}>Save Changes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Plan Modal */}
+      <Modal open={!!deletePlanModal} onClose={() => setDeletePlanModal(null)} title={`Delete — ${deletePlanModal?.name || ''}`} size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-[#64748b]">
+            Are you sure you want to delete this plan? Schools currently on this plan won't be affected, but you won't be able to assign it to new schools.
+          </p>
+          {deleteMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {deleteMutation.error?.response?.data?.message || 'Failed to delete plan.'}
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setDeletePlanModal(null)}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deletePlanModal.id)}>
+              Confirm Delete
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
