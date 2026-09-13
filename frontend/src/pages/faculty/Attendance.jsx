@@ -47,13 +47,19 @@ export default function FacultyAttendance() {
   const [apiError, setApiError]     = useState('');
 
   // ── Assignments ──────────────────────────────────────────────────────────
-  const { data: assignments = [], isLoading: loadingAssignments } = useQuery({
+  const {
+    data: assignments = [],
+    isLoading: loadingAssignments,
+    isError: assignmentsError,
+    error: assignmentsErrorObj,
+  } = useQuery({
     queryKey: ['faculty-assignments'],
     queryFn: () => getMyAssignments().then((r) => r.data.data ?? []),
+    retry: false,
   });
 
   // Derived unique lists
-  const uniqueSessions = [...new Map(assignments.map((a) => [a.sessionId, a.sessionId])).values()];
+  const uniqueSessions = [...new Map(assignments.map((a) => [a.sessionId, a.session])).values()];
   const classesForSession = [...new Map(
     assignments.filter((a) => a.sessionId === sessionId).map((a) => [a.class.id, a.class])
   ).values()];
@@ -63,7 +69,7 @@ export default function FacultyAttendance() {
 
   // Auto-select when only one option
   useEffect(() => {
-    if (uniqueSessions.length === 1) setSessionId(uniqueSessions[0]);
+    if (uniqueSessions.length === 1) setSessionId(uniqueSessions[0].id);
   }, [assignments]);
   useEffect(() => {
     setClassId('');
@@ -87,17 +93,20 @@ export default function FacultyAttendance() {
     isLoading: loadingRoster,
     isError: rosterError,
   } = useQuery({
-    queryKey: ['attendance-roster', sessionId, classId, sectionId],
-    queryFn: () => getRosterForAttendance({ sessionId, classId, sectionId }).then((r) => r.data.data ?? []),
+    queryKey: ['attendance-roster', sessionId, classId, sectionId, date],
+    queryFn: () => getRosterForAttendance({ sessionId, classId, sectionId, date }).then((r) => r.data.data ?? []),
     enabled: canFetchRoster,
-    onSuccess: (data) => {
-      const init = {};
-      data.forEach((e) => { init[e.id] = 'present'; });
-      setAttendance(init);
-      setSubmitted(false);
-      setApiError('');
-    },
   });
+
+  // React Query v5 removed onSuccess from useQuery — sync local state via effect instead
+  useEffect(() => {
+    if (!roster || roster.length === 0) return;
+    const init = {};
+    roster.forEach((e) => { init[e.id] = e.attendance?.[0]?.status || 'present'; });
+    setAttendance(init);
+    setSubmitted(roster.every((e) => e.attendance?.length > 0));
+    setApiError('');
+  }, [roster]);
 
   // ── Submit ───────────────────────────────────────────────────────────────
   const mutation = useMutation({
@@ -105,7 +114,7 @@ export default function FacultyAttendance() {
     onSuccess: () => {
       setSubmitted(true);
       setApiError('');
-      qc.invalidateQueries(['attendance-roster']);
+      qc.invalidateQueries({ queryKey: ['attendance-roster'] });
     },
     onError: (err) => {
       setApiError(err?.response?.data?.message || 'Failed to submit attendance. Please try again.');
@@ -119,7 +128,6 @@ export default function FacultyAttendance() {
   }
 
   function handleSubmit() {
-    if (submitted) return;
     setApiError('');
     const records = roster.map((e) => ({
       enrollmentId: e.id,
@@ -159,8 +167,18 @@ export default function FacultyAttendance() {
                 className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white text-[#1e293b]"
               >
                 <option value="">Select session</option>
-                {uniqueSessions.map((s) => <option key={s} value={s}>{s}</option>)}
+                {uniqueSessions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}{s.isActive ? ' (Current)' : ''}</option>
+                ))}
               </select>
+            )}
+            {assignmentsError && (
+              <p className="text-xs text-red-600 mt-1">
+                Error loading assignments: {assignmentsErrorObj?.response?.data?.message || assignmentsErrorObj?.message}
+              </p>
+            )}
+            {!assignmentsError && !loadingAssignments && assignments.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">No assignments found for your account. Contact admin.</p>
             )}
           </div>
 
@@ -199,7 +217,7 @@ export default function FacultyAttendance() {
               type="date"
               value={date}
               max={today}
-              onChange={(e) => { setDate(e.target.value); setSubmitted(false); setApiError(''); }}
+              onChange={(e) => { setDate(e.target.value); setApiError(''); }}
               className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white text-[#1e293b]"
             />
           </div>
@@ -231,6 +249,13 @@ export default function FacultyAttendance() {
                 <span className="text-xs text-[#94a3b8] ml-auto">Total: {roster.length}</span>
               </div>
 
+              {submitted && (
+                <div className="flex items-center gap-2 mx-5 mt-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                  <CheckCircle size={15} />
+                  Already saved for this date. You can still edit and re-save anytime.
+                </div>
+              )}
+
               {/* Bulk mark */}
               <div className="flex items-center gap-3 px-5 py-3 border-b border-[#e2e8f0]">
                 <span className="text-xs font-semibold text-[#64748b] uppercase">Mark all:</span>
@@ -238,8 +263,7 @@ export default function FacultyAttendance() {
                   <button
                     key={s}
                     onClick={() => handleMarkAll(s)}
-                    disabled={submitted}
-                    className={`text-xs px-3 py-1 rounded-full border font-semibold capitalize transition-all disabled:opacity-50 disabled:cursor-not-allowed ${STATUS_CONFIG[s].active}`}
+                    className={`text-xs px-3 py-1 rounded-full border font-semibold capitalize transition-all ${STATUS_CONFIG[s].active}`}
                   >
                     {s}
                   </button>
@@ -267,9 +291,8 @@ export default function FacultyAttendance() {
                           return (
                             <button
                               key={s}
-                              onClick={() => !submitted && setAttendance((prev) => ({ ...prev, [enrollment.id]: s }))}
-                              disabled={submitted}
-                              className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-semibold capitalize transition-all disabled:cursor-not-allowed ${isActive ? cfg.active : cfg.inactive}`}
+                              onClick={() => { setAttendance((prev) => ({ ...prev, [enrollment.id]: s })); setSubmitted(false); }}
+                              className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-semibold capitalize transition-all ${isActive ? cfg.active : cfg.inactive}`}
                             >
                               <Icon size={12} /> {s}
                             </button>
@@ -286,7 +309,7 @@ export default function FacultyAttendance() {
                 <div>
                   {submitted && (
                     <p className="text-sm font-semibold text-green-600 flex items-center gap-1.5">
-                      <CheckCircle size={16} /> Attendance submitted and locked.
+                      <CheckCircle size={16} /> Attendance saved. You can still make changes anytime.
                     </p>
                   )}
                   {apiError && (
@@ -298,9 +321,9 @@ export default function FacultyAttendance() {
                 <Button
                   onClick={handleSubmit}
                   loading={mutation.isPending}
-                  disabled={submitted || !allFilled}
+                  disabled={!allFilled}
                 >
-                  {submitted ? 'Submitted' : 'Submit Attendance'}
+                  {mutation.isPending ? 'Saving...' : 'Save Attendance'}
                 </Button>
               </div>
             </>

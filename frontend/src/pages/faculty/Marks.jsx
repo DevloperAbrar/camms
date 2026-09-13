@@ -28,7 +28,7 @@ export default function FacultyMarks() {
     queryFn: () => getMyAssignments().then((r) => r.data.data ?? []),
   });
 
-  const uniqueSessions = [...new Map(assignments.map((a) => [a.sessionId, a.sessionId])).values()];
+  const uniqueSessions = [...new Map(assignments.map((a) => [a.sessionId, a.session])).values()];
   const classesForSession = [...new Map(
     assignments.filter((a) => a.sessionId === sessionId).map((a) => [a.class.id, a.class])
   ).values()];
@@ -56,16 +56,19 @@ export default function FacultyMarks() {
     queryKey: ['marks-roster', examSubjectId],
     queryFn: () => getRosterForMarks({ examSubjectId }).then((r) => r.data.data),
     enabled: !!examSubjectId,
-    onSuccess: (data) => {
-      const init = {};
-      (data.enrollments ?? []).forEach((e) => {
-        init[e.id] = e.marks?.[0] ? String(e.marks[0].marksObtained) : '';
-      });
-      setMarksMap(init);
-      setSubmitted(false);
-      setApiError('');
-    },
   });
+
+  // React Query v5 removed onSuccess from useQuery — sync local state via effect instead
+  useEffect(() => {
+    if (!rosterData) return;
+    const init = {};
+    (rosterData.enrollments ?? []).forEach((e) => {
+      init[e.id] = e.marks?.[0] ? String(e.marks[0].marksObtained) : '';
+    });
+    setMarksMap(init);
+    setSubmitted(false);
+    setApiError('');
+  }, [rosterData]);
 
   const maxMarks  = rosterData ? Number(rosterData.maxMarks)  : null;
   const passMarks = rosterData ? Number(rosterData.passingMarks) : null;
@@ -129,7 +132,9 @@ export default function FacultyMarks() {
                 className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f97316] bg-white text-[#1e293b]"
               >
                 <option value="">Select session</option>
-                {uniqueSessions.map((s) => <option key={s} value={s}>{s}</option>)}
+                {uniqueSessions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}{s.isActive ? ' (Current)' : ''}</option>
+                ))}
               </select>
             )}
           </div>
