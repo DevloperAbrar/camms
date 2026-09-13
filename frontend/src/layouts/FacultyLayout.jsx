@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardCheck, FileEdit, LogOut, BookOpen, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, FileEdit, LogOut, BookOpen, BarChart2, FileText } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutFaculty } from '../api/auth.api';
 import useAuthStore from '../store/auth.store';
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/faculty/attendance', icon: ClipboardCheck,  label: 'Attendance' },
   { to: '/faculty/marks',      icon: FileEdit,        label: 'Marks'      },
   { to: '/faculty/analytics',  icon: BarChart2,       label: 'Analytics'  },
+  { to: '/faculty/reports',    icon: FileText,        label: 'Reports'    },
 ];
 
 export default function FacultyLayout() {

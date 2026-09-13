@@ -19,3 +19,12 @@ export const getAttendanceTrend      = (params) => api.get('/faculty/analytics/t
 export const getStudentStats         = (params) => api.get('/faculty/analytics/students', { params });
 export const getMarksSummary         = (params) => api.get('/faculty/analytics/marks-summary', { params });
 export const getSectionComparison    = (params) => api.get('/faculty/analytics/section-comparison', { params });
+
+// Reports (Attendance Report, Marks Report, Student Report Card)
+export const getMyReportsAttendance = (params) => api.get('/faculty/reports/attendance', { params });
+export const getMyReportsExamTypes  = (params) => api.get('/faculty/reports/exam-types', { params });
+export const getMyReportsSubjects   = (params) => api.get('/faculty/reports/subjects', { params });
+export const getMyReportsMarks      = (params) => api.get('/faculty/reports/marks', { params });
+export const getMyReportsStudents   = (params) => api.get('/faculty/reports/students', { params });
+export const getMyReportCard        = (params) => api.get('/faculty/reports/report-card', { params });
+export const downloadMyReportCard   = (params) => api.get('/faculty/reports/report-card-pdf', { params, responseType: 'blob' });

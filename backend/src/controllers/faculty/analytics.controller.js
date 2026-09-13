@@ -1,6 +1,11 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
 const { prisma } = require('../../config/db');
+const {
+  getFacultyViewableSections,
+  canViewSection,
+  getFacultyViewableSubjectIds,
+} = require('../../services/facultyScope.service');
 
 function isoWeekBounds(dateStr) {
   const d = new Date(dateStr);
@@ -26,18 +31,15 @@ const getOverview = asyncHandler(async (req, res) => {
   const { sessionId } = req.query;
   if (!sessionId) return ApiResponse.error(res, 422, 'sessionId is required');
 
-  const assignments = await prisma.facultyAssignment.findMany({
-    where: { facultyId: req.user.id, sessionId, isActive: true },
-    select: { classId: true, sectionId: true },
-  });
+  const viewable = await getFacultyViewableSections({ facultyId: req.user.id, sessionId });
 
-  if (assignments.length === 0) {
+  if (viewable.length === 0) {
     return ApiResponse.success(res, 200, 'Overview fetched', {
       totalStudents: 0, avgAttendance: 0, marksEntered: 0, lowAttendanceCount: 0,
     });
   }
 
-  const sectionPairs = assignments.map((a) => ({ classId: a.classId, sectionId: a.sectionId }));
+  const sectionPairs = viewable.map((v) => ({ classId: v.classId, sectionId: v.sectionId }));
 
   const enrollments = await prisma.enrollment.findMany({
     where: { sessionId, OR: sectionPairs, status: 'active' },
@@ -81,10 +83,10 @@ const getDailyAttendance = asyncHandler(async (req, res) => {
 
   const { start, end } = dayBounds(date);
 
-  const assignments = await prisma.facultyAssignment.findMany({
-    where: { facultyId: req.user.id, sessionId, isActive: true },
-    select: { classId: true, sectionId: true },
-  });
+  const viewable = await getFacultyViewableSections({ facultyId: req.user.id, sessionId });
+  if (viewable.length === 0) {
+    return ApiResponse.success(res, 200, 'Daily attendance fetched', { date, totalStudents: 0, present: 0, absent: 0, late: 0, unmarked: 0 });
+  }
 
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -92,7 +94,7 @@ const getDailyAttendance = asyncHandler(async (req, res) => {
       ...(classId ? { classId } : {}),
       ...(sectionId ? { sectionId } : {}),
       status: 'active',
-      OR: assignments.map((a) => ({ classId: a.classId, sectionId: a.sectionId })),
+      OR: viewable.map((v) => ({ classId: v.classId, sectionId: v.sectionId })),
     },
     select: { id: true },
   });
@@ -118,10 +120,10 @@ const getWeeklyAttendance = asyncHandler(async (req, res) => {
 
   const { start, end } = isoWeekBounds(date);
 
-  const assignments = await prisma.facultyAssignment.findMany({
-    where: { facultyId: req.user.id, sessionId, isActive: true },
-    select: { classId: true, sectionId: true },
-  });
+  const viewable = await getFacultyViewableSections({ facultyId: req.user.id, sessionId });
+  if (viewable.length === 0) {
+    return ApiResponse.success(res, 200, 'Weekly attendance fetched', { weekStart: start.toISOString().split('T')[0], days: [] });
+  }
 
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -129,7 +131,7 @@ const getWeeklyAttendance = asyncHandler(async (req, res) => {
       ...(classId ? { classId } : {}),
       ...(sectionId ? { sectionId } : {}),
       status: 'active',
-      OR: assignments.map((a) => ({ classId: a.classId, sectionId: a.sectionId })),
+      OR: viewable.map((v) => ({ classId: v.classId, sectionId: v.sectionId })),
     },
     select: { id: true },
   });
@@ -169,10 +171,10 @@ const getAttendanceTrend = asyncHandler(async (req, res) => {
   start.setUTCDate(start.getUTCDate() - Number(days));
   start.setUTCHours(0, 0, 0, 0);
 
-  const assignments = await prisma.facultyAssignment.findMany({
-    where: { facultyId: req.user.id, sessionId, isActive: true },
-    select: { classId: true, sectionId: true },
-  });
+  const viewable = await getFacultyViewableSections({ facultyId: req.user.id, sessionId });
+  if (viewable.length === 0) {
+    return ApiResponse.success(res, 200, 'Attendance trend fetched', { trend: [], totalStudents: 0 });
+  }
 
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -180,7 +182,7 @@ const getAttendanceTrend = asyncHandler(async (req, res) => {
       ...(classId ? { classId } : {}),
       ...(sectionId ? { sectionId } : {}),
       status: 'active',
-      OR: assignments.map((a) => ({ classId: a.classId, sectionId: a.sectionId })),
+      OR: viewable.map((v) => ({ classId: v.classId, sectionId: v.sectionId })),
     },
     select: { id: true },
   });
@@ -211,10 +213,9 @@ const getStudentStats = asyncHandler(async (req, res) => {
     return ApiResponse.error(res, 422, 'sessionId, classId and sectionId are required');
   }
 
-  const isAssigned = await prisma.facultyAssignment.findFirst({
-    where: { facultyId: req.user.id, sessionId, classId, sectionId, isActive: true },
-  });
-  if (!isAssigned) return ApiResponse.error(res, 403, 'Not assigned to this section');
+  // Assigned to teach here OR the class teacher of this section — either grants view access.
+  const { allowed } = await canViewSection({ facultyId: req.user.id, sessionId, classId, sectionId });
+  if (!allowed) return ApiResponse.error(res, 403, 'You do not have access to this section');
 
   const enrollments = await prisma.enrollment.findMany({
     where: { sessionId, classId, sectionId, status: 'active' },
@@ -249,19 +250,20 @@ const getStudentStats = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Student stats fetched', results);
 });
 
+// Marks summary: subjects they personally teach, OR — if they're the class
+// teacher of a section in this class — EVERY subject taught in the class.
 const getMarksSummary = asyncHandler(async (req, res) => {
   const { sessionId, classId, subjectId } = req.query;
   if (!sessionId || !classId) return ApiResponse.error(res, 422, 'sessionId and classId are required');
 
-  const assignments = await prisma.facultyAssignment.findMany({
-    where: {
-      facultyId: req.user.id, sessionId, classId, isActive: true,
-      ...(subjectId ? { subjectId } : {}),
-    },
-    select: { subjectId: true },
-  });
+  const viewableSubjectIds = await getFacultyViewableSubjectIds({ facultyId: req.user.id, sessionId, classId });
+  const subjectIds = subjectId
+    ? viewableSubjectIds.filter((id) => id === subjectId)
+    : viewableSubjectIds;
 
-  const subjectIds = [...new Set(assignments.map((a) => a.subjectId))];
+  if (subjectIds.length === 0) {
+    return ApiResponse.success(res, 200, 'Marks summary fetched', []);
+  }
 
   const examSubjects = await prisma.examSubject.findMany({
     where: { subjectId: { in: subjectIds }, examType: { sessionId, classId } },
@@ -300,28 +302,23 @@ const getSectionComparison = asyncHandler(async (req, res) => {
   const { sessionId } = req.query;
   if (!sessionId) return ApiResponse.error(res, 422, 'sessionId is required');
 
-  const assignments = await prisma.facultyAssignment.findMany({
-    where: { facultyId: req.user.id, sessionId, isActive: true },
-    include: {
-      class: { select: { name: true } },
-      section: { select: { name: true } },
-    },
-  });
+  const viewable = await getFacultyViewableSections({ facultyId: req.user.id, sessionId });
+  if (viewable.length === 0) return ApiResponse.success(res, 200, 'Section comparison fetched', []);
 
-  const seen = new Set();
-  const sections = [];
-  for (const a of assignments) {
-    const key = `${a.classId}|${a.sectionId}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      sections.push({ classId: a.classId, sectionId: a.sectionId, className: a.class.name, sectionName: a.section.name });
-    }
-  }
+  const classIds = [...new Set(viewable.map((v) => v.classId))];
+  const sectionIds = [...new Set(viewable.map((v) => v.sectionId))];
+
+  const [classes, sections] = await Promise.all([
+    prisma.class.findMany({ where: { id: { in: classIds } }, select: { id: true, name: true } }),
+    prisma.section.findMany({ where: { id: { in: sectionIds } }, select: { id: true, name: true } }),
+  ]);
+  const classNameById = new Map(classes.map((c) => [c.id, c.name]));
+  const sectionNameById = new Map(sections.map((s) => [s.id, s.name]));
 
   const results = await Promise.all(
-    sections.map(async (s) => {
+    viewable.map(async (v) => {
       const enrollments = await prisma.enrollment.findMany({
-        where: { sessionId, classId: s.classId, sectionId: s.sectionId, status: 'active' },
+        where: { sessionId, classId: v.classId, sectionId: v.sectionId, status: 'active' },
         select: { id: true },
       });
       const ids = enrollments.map((e) => e.id);
@@ -330,7 +327,14 @@ const getSectionComparison = asyncHandler(async (req, res) => {
         where: { enrollmentId: { in: ids }, subjectId: null, status: { in: ['present', 'late'] } },
       });
       const pct = total > 0 ? Number(((present / total) * 100).toFixed(1)) : null;
-      return { label: `${s.className} – ${s.sectionName}`, classId: s.classId, sectionId: s.sectionId, pct, totalStudents: ids.length };
+      return {
+        label: `${classNameById.get(v.classId)} – ${sectionNameById.get(v.sectionId)}`,
+        classId: v.classId,
+        sectionId: v.sectionId,
+        isClassTeacher: v.isClassTeacher,
+        pct,
+        totalStudents: ids.length,
+      };
     })
   );
 

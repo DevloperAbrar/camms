@@ -11,6 +11,7 @@ const attendanceController = require('../controllers/faculty/attendance.controll
 const marksController = require('../controllers/faculty/marks.controller');
 const correctionController = require('../controllers/faculty/correction.controller');
 const analyticsController = require('../controllers/faculty/analytics.controller');
+const reportsController = require('../controllers/faculty/reports.controller');
 
 const notificationController = require('../controllers/shared/notification.controller');
 
@@ -39,6 +40,16 @@ router.get('/analytics/trend',              analyticsController.getAttendanceTre
 router.get('/analytics/students',           analyticsController.getStudentStats);
 router.get('/analytics/marks-summary',      analyticsController.getMarksSummary);
 router.get('/analytics/section-comparison', analyticsController.getSectionComparison);
+
+// Reports — Attendance Report, Marks Report, Student Report Card.
+// Class teachers get all-subject visibility here; see facultyScope.service.js
+router.get('/reports/attendance',      reportsController.getMyAttendanceReport);
+router.get('/reports/exam-types',      reportsController.getMyExamTypes);
+router.get('/reports/subjects',        reportsController.getMySubjectsForReports);
+router.get('/reports/marks',           reportsController.getMyMarksReport);
+router.get('/reports/students',        reportsController.getMyStudentsForReports);
+router.get('/reports/report-card',     reportsController.getMyStudentReportCard);
+router.get('/reports/report-card-pdf', reportsController.downloadMyStudentReportCardPDF);
 
 // Corrections
 router.post('/corrections/request', correctionController.requestCorrection);

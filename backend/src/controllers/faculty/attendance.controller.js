@@ -6,7 +6,11 @@ const { markAttendanceSchema } = require('../../validators/faculty.validator');
 const { verifyFacultyAssignment } = require('../../services/attendance.service');
 const { createBulkNotifications } = require('../../services/notification.service');
 
-// Only combinations assigned to this faculty are returned — screen filters itself
+// Combinations assigned to this faculty, PLUS any section where they are the
+// Class Teacher (even without a subject assignment there) — class teachers get
+// a read-only "all subjects" view/report scope for their section (see
+// analytics.controller.js and reports.controller.js), while marking attendance
+// or entering marks still requires an actual FacultyAssignment row.
 const getMyAssignments = asyncHandler(async (req, res) => {
   const { sessionId } = req.query;
 
@@ -20,7 +24,47 @@ const getMyAssignments = asyncHandler(async (req, res) => {
     },
   });
 
-  return ApiResponse.success(res, 200, 'Assignments fetched', assignments);
+  const classTeacherSections = await prisma.section.findMany({
+    where: {
+      classTeacherId: req.user.id,
+      ...(sessionId ? { class: { sessionId } } : {}),
+    },
+    include: {
+      class: {
+        select: { id: true, name: true, sessionId: true, session: { select: { id: true, label: true, isActive: true } } },
+      },
+    },
+  });
+
+  const classTeacherSectionIds = new Set(classTeacherSections.map((s) => s.id));
+
+  const combined = assignments.map((a) => ({
+    ...a,
+    isClassTeacher: classTeacherSectionIds.has(a.sectionId),
+  }));
+
+  const seen = new Set(assignments.map((a) => `${a.sessionId}|${a.classId}|${a.sectionId}`));
+  for (const s of classTeacherSections) {
+    const key = `${s.class.sessionId}|${s.classId}|${s.id}`;
+    if (seen.has(key)) continue; // already covered by a real subject assignment
+    seen.add(key);
+    combined.push({
+      id: `ct-${s.id}`,
+      facultyId: req.user.id,
+      sessionId: s.class.sessionId,
+      classId: s.classId,
+      sectionId: s.id,
+      subjectId: null,
+      isActive: true,
+      isClassTeacher: true,
+      session: s.class.session,
+      class: { id: s.classId, name: s.class.name },
+      section: { id: s.id, name: s.name },
+      subject: null, // no single subject — class teacher sees ALL subjects here
+    });
+  }
+
+  return ApiResponse.success(res, 200, 'Assignments fetched', combined);
 });
 
 const getRosterForAttendance = asyncHandler(async (req, res) => {

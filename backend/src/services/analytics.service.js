@@ -30,12 +30,12 @@ async function getExamSubjectStats(examSubjectId) {
 
 // Full marks report — ALL entries for the exam type (pass + fail), unlike
 // getDefaulterList below which only returns students under the passing mark.
-async function getMarksReport({ schoolId, examTypeId, subjectId, sectionId }) {
+async function getMarksReport({ schoolId, examTypeId, subjectId, subjectIds, sectionId, sectionIds }) {
   const examSubjects = await prisma.examSubject.findMany({
     where: {
       examTypeId,
       examType: { schoolId },
-      ...(subjectId ? { subjectId } : {}),
+      ...(subjectId ? { subjectId } : subjectIds ? { subjectId: { in: subjectIds } } : {}),
     },
     include: { subject: { select: { name: true } } },
   });
@@ -46,7 +46,11 @@ async function getMarksReport({ schoolId, examTypeId, subjectId, sectionId }) {
     const marks = await prisma.marks.findMany({
       where: {
         examSubjectId: es.id,
-        ...(sectionId ? { enrollment: { sectionId } } : {}),
+        ...(sectionId
+          ? { enrollment: { sectionId } }
+          : sectionIds
+          ? { enrollment: { sectionId: { in: sectionIds } } }
+          : {}),
       },
       include: {
         enrollment: {
@@ -452,13 +456,13 @@ function pctAttendance(records) {
 
 // ============= ATTENDANCE REPORT (date-range aware, returns ALL students) =============
 
-async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, fromDate, toDate }) {
+async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, sectionIds, fromDate, toDate }) {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       sessionId,
       status: 'active',
       ...(classId ? { classId } : {}),
-      ...(sectionId ? { sectionId } : {}),
+      ...(sectionId ? { sectionId } : sectionIds ? { sectionId: { in: sectionIds } } : {}),
       student: { schoolId },
     },
     include: {
