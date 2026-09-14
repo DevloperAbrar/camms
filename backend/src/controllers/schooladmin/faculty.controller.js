@@ -69,7 +69,7 @@ const updateFaculty = asyncHandler(async (req, res) => {
 });
 
 // Never hard-delete a faculty account (attendance/marks history stays attributed to them)
-// — deactivating blocks login while keeping every past record intact
+// -- deactivating blocks login while keeping every past record intact
 const deactivateFaculty = asyncHandler(async (req, res) => {
   const faculty = await prisma.user.findFirst({
     where: { id: req.params.id, schoolId: req.schoolId, role: 'faculty' },
@@ -126,6 +126,20 @@ const getFacultyAssignments = asyncHandler(async (req, res) => {
 const assignFaculty = asyncHandler(async (req, res) => {
   const data = assignFacultySchema.parse(req.body);
 
+  // Tenant check: every id in this payload (faculty, class, section, subject,
+  // session) must actually belong to this admin's school -- otherwise an
+  // admin could wire their faculty into another school's class, or vice versa.
+  const [faculty, classRow, section, subject, session] = await Promise.all([
+    prisma.user.findFirst({ where: { id: data.facultyId, schoolId: req.schoolId, role: 'faculty' } }),
+    prisma.class.findFirst({ where: { id: data.classId, schoolId: req.schoolId } }),
+    prisma.section.findFirst({ where: { id: data.sectionId, schoolId: req.schoolId } }),
+    prisma.subject.findFirst({ where: { id: data.subjectId, schoolId: req.schoolId } }),
+    prisma.academicSession.findFirst({ where: { id: data.sessionId, schoolId: req.schoolId } }),
+  ]);
+  if (!faculty || !classRow || !section || !subject || !session) {
+    return ApiResponse.error(res, 404, 'One or more selected values were not found for this school');
+  }
+
   const existing = await prisma.facultyAssignment.findFirst({
     where: {
       facultyId: data.facultyId,
@@ -151,7 +165,9 @@ const assignFaculty = asyncHandler(async (req, res) => {
 const updateFacultyAssignment = asyncHandler(async (req, res) => {
   const data = updateFacultyAssignmentSchema.parse(req.body);
 
-  const current = await prisma.facultyAssignment.findUnique({ where: { id: req.params.id } });
+  const current = await prisma.facultyAssignment.findFirst({
+    where: { id: req.params.id, session: { schoolId: req.schoolId } },
+  });
   if (!current) return ApiResponse.error(res, 404, 'Assignment not found');
 
   const merged = {
@@ -161,6 +177,19 @@ const updateFacultyAssignment = asyncHandler(async (req, res) => {
     subjectId: data.subjectId ?? current.subjectId,
     sessionId: data.sessionId ?? current.sessionId,
   };
+
+  // Tenant check: if the admin is swapping in a different faculty/class/
+  // section/subject/session, that new id must also belong to this school.
+  const [faculty, classRow, section, subject, session] = await Promise.all([
+    prisma.user.findFirst({ where: { id: merged.facultyId, schoolId: req.schoolId, role: 'faculty' } }),
+    prisma.class.findFirst({ where: { id: merged.classId, schoolId: req.schoolId } }),
+    prisma.section.findFirst({ where: { id: merged.sectionId, schoolId: req.schoolId } }),
+    prisma.subject.findFirst({ where: { id: merged.subjectId, schoolId: req.schoolId } }),
+    prisma.academicSession.findFirst({ where: { id: merged.sessionId, schoolId: req.schoolId } }),
+  ]);
+  if (!faculty || !classRow || !section || !subject || !session) {
+    return ApiResponse.error(res, 404, 'One or more selected values were not found for this school');
+  }
 
   const duplicate = await prisma.facultyAssignment.findFirst({
     where: { ...merged, isActive: true, id: { not: req.params.id } },
@@ -177,10 +206,15 @@ const updateFacultyAssignment = asyncHandler(async (req, res) => {
   await logAudit({ req, action: 'UPDATE_FACULTY_ASSIGNMENT', resourceType: 'faculty_assignment', resourceId: updated.id, metadata: merged });
 
   return ApiResponse.success(res, 200, 'Assignment updated', updated);
-}); 
+});
 
-// Never hard-delete — mark inactive so past attendance/marks stay correctly attributed
+// Never hard-delete -- mark inactive so past attendance/marks stay correctly attributed
 const removeFacultyAssignment = asyncHandler(async (req, res) => {
+  const existing = await prisma.facultyAssignment.findFirst({
+    where: { id: req.params.id, session: { schoolId: req.schoolId } },
+  });
+  if (!existing) return ApiResponse.error(res, 404, 'Assignment not found');
+
   const assignment = await prisma.facultyAssignment.update({
     where: { id: req.params.id },
     data: { isActive: false, removedAt: new Date() },

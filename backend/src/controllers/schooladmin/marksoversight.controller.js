@@ -4,8 +4,14 @@ const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
 const { overrideMarkSchema } = require('../../validators/exam.validator');
 
-// Admin can view any faculty-entered mark
+// Admin can view any faculty-entered mark -- but only within their own school
 const getMarksForExamSubject = asyncHandler(async (req, res) => {
+  const examSubject = await prisma.examSubject.findFirst({
+    where: { id: req.params.examSubjectId, examType: { schoolId: req.schoolId } },
+    select: { id: true },
+  });
+  if (!examSubject) return ApiResponse.error(res, 404, 'Exam subject not found');
+
   const marks = await prisma.marks.findMany({
     where: { examSubjectId: req.params.examSubjectId },
     include: {
@@ -17,9 +23,15 @@ const getMarksForExamSubject = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Marks fetched', marks);
 });
 
-// Override is allowed, but never silent — mandatory reason, always logged
+// Override is allowed, but never silent -- mandatory reason, always logged
 const overrideMark = asyncHandler(async (req, res) => {
   const { marksObtained, reason } = overrideMarkSchema.parse(req.body);
+
+  const existing = await prisma.marks.findFirst({
+    where: { id: req.params.id, examSubject: { examType: { schoolId: req.schoolId } } },
+    select: { id: true },
+  });
+  if (!existing) return ApiResponse.error(res, 404, 'Mark not found');
 
   const mark = await prisma.marks.update({
     where: { id: req.params.id },

@@ -395,7 +395,7 @@ const downloadStudentProgressPDF = asyncHandler(async (req, res) => {
 
   const [data, student] = await Promise.all([
     getStudentProgressTrend({ schoolId: req.schoolId, studentId, sessionId }),
-    prisma.student.findUnique({ where: { id: studentId }, select: { name: true, enrollmentNumber: true } }),
+    prisma.student.findUnique({ where: { id: studentId, schoolId: req.schoolId }, select: { name: true, enrollmentNumber: true } }),
   ]);
 
   const buffer = await generateTableReportPDF({

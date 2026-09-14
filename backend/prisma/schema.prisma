@@ -370,6 +370,7 @@ model Marks {
   faculty      User         @relation(fields: [enteredBy], references: [id])
 
   @@index([enrollmentId, examSubjectId])
+  @@index([examSubjectId])
   @@map("marks")
 }
 

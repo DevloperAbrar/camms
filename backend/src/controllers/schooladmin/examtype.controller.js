@@ -46,10 +46,17 @@ const getExamTypes = asyncHandler(async (req, res) => {
 const addExamSubject = asyncHandler(async (req, res) => {
   const data = addExamSubjectSchema.parse(req.body);
 
-  const examType = await prisma.examType.findUnique({ where: { id: data.examTypeId } });
+  // Tenant check: examTypeId (and the subjectId being attached to it) must
+  // both belong to this admin's school -- also fixes a crash where a bad/
+  // missing examTypeId used to throw on examType.isLocked instead of a 404.
+  const examType = await prisma.examType.findFirst({ where: { id: data.examTypeId, schoolId: req.schoolId } });
+  if (!examType) return ApiResponse.error(res, 404, 'Exam type not found');
   if (examType.isLocked) {
     return ApiResponse.error(res, 409, 'This exam is locked. Force-unlock is required to add subjects.');
   }
+
+  const subject = await prisma.subject.findFirst({ where: { id: data.subjectId, schoolId: req.schoolId } });
+  if (!subject) return ApiResponse.error(res, 404, 'Subject not found');
 
   const examSubject = await prisma.examSubject.create({ data });
 
@@ -58,11 +65,15 @@ const addExamSubject = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 201, 'Subject added to exam', examSubject);
 });
 
-// Blocked once marks entry has begun for this subject — that's what "locked" means
+// Blocked once marks entry has begun for this subject -- that's what "locked" means
 const updateExamSubject = asyncHandler(async (req, res) => {
   const data = updateExamSubjectSchema.parse(req.body);
 
-  const examSubject = await prisma.examSubject.findUnique({ where: { id: req.params.id } });
+  const examSubject = await prisma.examSubject.findFirst({
+    where: { id: req.params.id, examType: { schoolId: req.schoolId } },
+  });
+  if (!examSubject) return ApiResponse.error(res, 404, 'Exam subject not found');
+
   const hasMarks = await prisma.marks.findFirst({ where: { examSubjectId: req.params.id } });
 
   if (hasMarks) {
@@ -76,9 +87,12 @@ const updateExamSubject = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Exam subject updated', updated);
 });
 
-// Mandatory reason, always audit-logged — never a silent structural change
+// Mandatory reason, always audit-logged -- never a silent structural change
 const forceUnlockExamType = asyncHandler(async (req, res) => {
   const { reason } = forceUnlockSchema.parse(req.body);
+
+  const existing = await prisma.examType.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
+  if (!existing) return ApiResponse.error(res, 404, 'Exam type not found');
 
   const examType = await prisma.examType.update({
     where: { id: req.params.id },
@@ -217,11 +231,11 @@ const copyExamConfig = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 201, 'Exam configuration copied', {
     examTypes,
     autoCreatedSubjects,
-    skippedSubjects: [], // nothing skipped anymore — subjects are auto-created
+    skippedSubjects: [], // nothing skipped anymore -- subjects are auto-created
   });
 });
 
-// Renaming/reordering/re-weighting is safe even after marks entry — it doesn't
+// Renaming/reordering/re-weighting is safe even after marks entry -- it doesn't
 // touch subjects or marks. Structural changes (subjects, max/passing) stay
 // gated behind addExamSubject/updateExamSubject's own marks checks.
 const updateExamType = asyncHandler(async (req, res) => {
@@ -239,7 +253,7 @@ const updateExamType = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Exam type updated', updated);
 });
 
-// Blocked once any marks have been entered under this exam type — deleting
+// Blocked once any marks have been entered under this exam type -- deleting
 // would silently cascade-delete those marks via ExamSubject -> Marks.
 const deleteExamType = asyncHandler(async (req, res) => {
   const existing = await prisma.examType.findFirst({ where: { id: req.params.id, schoolId: req.schoolId } });
@@ -249,7 +263,7 @@ const deleteExamType = asyncHandler(async (req, res) => {
 
   const hasMarks = await prisma.marks.findFirst({ where: { examSubject: { examTypeId: req.params.id } } });
   if (hasMarks) {
-    return ApiResponse.error(res, 409, 'Cannot delete — marks have already been entered under this exam type.');
+    return ApiResponse.error(res, 409, 'Cannot delete -- marks have already been entered under this exam type.');
   }
 
   await prisma.examType.delete({ where: { id: req.params.id } });
@@ -261,7 +275,7 @@ const deleteExamType = asyncHandler(async (req, res) => {
 
 // Bulk-copy subjects + marks INTO a specific exam type from another exam type
 // (e.g. copy "Periodic Test 1" of Class 6 into "Periodic Test 1" of Class 7).
-// Called from the Manage modal — the target exam type is req.params.id.
+// Called from the Manage modal -- the target exam type is req.params.id.
 // Subjects are matched by name; missing ones are auto-created in the target class.
 // Existing subjects in the target exam type are left untouched (no double-add).
 const copyExamSubjects = asyncHandler(async (req, res) => {
@@ -290,7 +304,7 @@ const copyExamSubjects = asyncHandler(async (req, res) => {
     return ApiResponse.error(res, 404, 'The source exam type has no subjects configured yet.');
   }
 
-  // Subjects already in target exam — skip them to avoid duplicates
+  // Subjects already in target exam -- skip them to avoid duplicates
   const alreadyAddedSubjectIds = new Set(targetExamType.examSubjects.map((es) => es.subjectId));
 
   // Fetch existing subjects in the target class for name-based matching
