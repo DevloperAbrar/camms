@@ -4,8 +4,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Auth Pages
 import SuperAdminLogin from './pages/auth/SuperAdminLogin';
 import AdminLogin from './pages/auth/AdminLogin';
-import FacultyLogin from './pages/auth/FacultyLogin';
-import ParentLogin from './pages/auth/ParentLogin';
 import GoogleAuthCallback from './pages/auth/GoogleAuthCallback';
 
 // Layouts
@@ -50,8 +48,8 @@ export default function App() {
         {/* Auth */}
         <Route path="/login" element={<AdminLogin />} />
         <Route path="/superadmin/login" element={<SuperAdminLogin />} />
-        <Route path="/faculty/login" element={<FacultyLogin />} />
-        <Route path="/parent/login" element={<ParentLogin />} />
+        <Route path="/faculty/login" element={<Navigate to="/login" replace />} />
+        <Route path="/parent/login" element={<Navigate to="/login" replace />} />
         <Route path="/auth/callback" element={<GoogleAuthCallback />} />
 
         {/* Super Admin */}

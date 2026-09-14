@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, GraduationCap } from 'lucide-react';
-import { adminPasswordLogin } from '../../api/auth.api';
+import { schoolPasswordLogin } from '../../api/auth.api';
 import useAuthStore from '../../store/auth.store';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -20,7 +20,7 @@ export default function AdminLogin() {
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(schema) });
 
   const mutation = useMutation({
-    mutationFn: adminPasswordLogin,
+    mutationFn: schoolPasswordLogin,
     onSuccess: (res) => {
       setAuth(res.data.data);
       navigate('/admin/dashboard');
@@ -28,7 +28,7 @@ export default function AdminLogin() {
   });
 
   const handleGoogle = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL}/auth/admin/google`;
+    window.location.href = `${import.meta.env.VITE_API_URL}/auth/school/google`;
   };
 
   return (
@@ -47,7 +47,7 @@ export default function AdminLogin() {
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-[#1e293b]">School Admin Login</h2>
+            <h2 className="text-xl font-bold text-[#1e293b]">School Login</h2>
             <p className="text-sm text-[#64748b] mt-1">Sign in to manage your school</p>
           </div>
 
@@ -88,10 +88,6 @@ export default function AdminLogin() {
         </div>
 
         <div className="flex justify-center gap-6 mt-6">
-          <a href="/faculty/login" className="text-sm text-[#94a3b8] hover:text-[#f97316] transition-colors">Faculty Login</a>
-          <span className="text-[#475569]">·</span>
-          <a href="/parent/login" className="text-sm text-[#94a3b8] hover:text-[#f97316] transition-colors">Parent Login</a>
-          <span className="text-[#475569]">·</span>
           <a href="/superadmin/login" className="text-sm text-[#94a3b8] hover:text-[#f97316] transition-colors">Super Admin</a>
         </div>
       </div>

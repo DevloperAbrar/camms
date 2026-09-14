@@ -21,6 +21,8 @@ const holidayController = require('../controllers/schooladmin/holiday.controller
 const correctionController = require('../controllers/schooladmin/correction.controller');
 const reportCardController = require('../controllers/schooladmin/reportcard.controller');
 
+const marksLockController = require('../controllers/schooladmin/markslock.controller');
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -99,6 +101,9 @@ router.post('/exam-types/:id/force-unlock', examTypeController.forceUnlockExamTy
 // Marks Oversight
 router.get('/marks/exam-subject/:examSubjectId', marksOversightController.getMarksForExamSubject);
 router.patch('/marks/:id/override', marksOversightController.overrideMark);
+// Marks Lock/Unlock (dynamic, bulk, per Class + Subject + Exam Type)
+router.get('/marks-lock/overview', marksLockController.getLockOverview);
+router.patch('/marks-lock/exam-subject/:examSubjectId', marksLockController.setLockStatus);
 
 // Analytics
 router.get('/analytics/exam-stats/:examSubjectId', analyticsController.getExamStats);

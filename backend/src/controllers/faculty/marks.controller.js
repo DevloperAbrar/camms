@@ -5,6 +5,7 @@ const { logAudit } = require('../../middleware/audit.middleware');
 const { enterMarksSchema } = require('../../validators/faculty.validator');
 const { verifyFacultyCanEnterMarks } = require('../../services/marks.service');
 const { createBulkNotifications } = require('../../services/notification.service');
+
 // Faculty sees only the exam types/subjects already configured by admin for their assignment
 const getMyExamSubjects = asyncHandler(async (req, res) => {
   const { sessionId, classId, subjectId } = req.query;
@@ -49,7 +50,12 @@ const getRosterForMarks = asyncHandler(async (req, res) => {
   });
 });
 
-// Validated against admin-defined max marks; locks immediately after submission
+// Upsert: creates marks for students who don't have one yet, and updates
+// marks for students whose record the school admin has unlocked
+// (isLocked: false via the Marks Lock screen). Any student whose mark is
+// still locked is rejected outright. Every record saved here is (re)locked
+// immediately — matching the original "submit = locked" behaviour — so the
+// admin remains the only one who can unlock it again for a further edit.
 const enterMarks = asyncHandler(async (req, res) => {
   const data = enterMarksSchema.parse(req.body);
 
@@ -66,14 +72,32 @@ const enterMarks = asyncHandler(async (req, res) => {
   const existing = await prisma.marks.findMany({
     where: { examSubjectId: data.examSubjectId, enrollmentId: { in: data.records.map((r) => r.enrollmentId) } },
   });
+  const existingByEnrollment = new Map(existing.map((m) => [m.enrollmentId, m]));
 
-  if (existing.length > 0) {
-    return ApiResponse.error(res, 409, 'Marks for some students are already submitted. Use a correction request to change them.');
+  const stillLocked = data.records.filter((r) => {
+    const mark = existingByEnrollment.get(r.enrollmentId);
+    return mark && mark.isLocked;
+  });
+
+  if (stillLocked.length > 0) {
+    return ApiResponse.error(
+      res,
+      409,
+      'Marks for some students are locked. Ask your school admin to unlock this exam/subject before resubmitting.',
+      stillLocked.map((r) => r.enrollmentId)
+    );
   }
 
-  const created = await prisma.$transaction(
-    data.records.map((r) =>
-      prisma.marks.create({
+  const results = await prisma.$transaction(
+    data.records.map((r) => {
+      const mark = existingByEnrollment.get(r.enrollmentId);
+      if (mark) {
+        return prisma.marks.update({
+          where: { id: mark.id },
+          data: { marksObtained: r.marksObtained, enteredBy: req.user.id, isLocked: true, submittedAt: new Date() },
+        });
+      }
+      return prisma.marks.create({
         data: {
           enrollmentId: r.enrollmentId,
           examSubjectId: data.examSubjectId,
@@ -81,34 +105,40 @@ const enterMarks = asyncHandler(async (req, res) => {
           enteredBy: req.user.id,
           isLocked: true,
         },
-      })
-    )
+      });
+    })
   );
 
-  const enrollmentsWithStudents = await prisma.enrollment.findMany({
-    where: { id: { in: data.records.map((r) => r.enrollmentId) } },
-    include: { student: { select: { id: true, name: true } } },
-  });
+  const newlyCreatedIds = data.records
+    .filter((r) => !existingByEnrollment.has(r.enrollmentId))
+    .map((r) => r.enrollmentId);
 
-  const notifications = enrollmentsWithStudents.map((enr) => ({
-    schoolId: req.schoolId,
-    recipientType: 'parent',
-    recipientRef: enr.student.id,
-    title: 'Marks published',
-    message: `New marks have been published for ${enr.student.name}.`,
-    type: 'marks_published',
-  }));
+  if (newlyCreatedIds.length > 0) {
+    const enrollmentsWithStudents = await prisma.enrollment.findMany({
+      where: { id: { in: newlyCreatedIds } },
+      include: { student: { select: { id: true, name: true } } },
+    });
 
-  await createBulkNotifications(notifications);
-  
+    const notifications = enrollmentsWithStudents.map((enr) => ({
+      schoolId: req.schoolId,
+      recipientType: 'parent',
+      recipientRef: enr.student.id,
+      title: 'Marks published',
+      message: `New marks have been published for ${enr.student.name}.`,
+      type: 'marks_published',
+    }));
+
+    await createBulkNotifications(notifications);
+  }
+
   await logAudit({
     req,
     action: 'ENTER_MARKS',
     resourceType: 'marks',
-    metadata: { examSubjectId: data.examSubjectId, count: created.length },
+    metadata: { examSubjectId: data.examSubjectId, count: results.length },
   });
 
-  return ApiResponse.success(res, 201, 'Marks submitted and locked', { count: created.length });
+  return ApiResponse.success(res, 201, 'Marks submitted and locked', { count: results.length });
 });
 
 // Scoped analytics: this faculty's own sections/classes only

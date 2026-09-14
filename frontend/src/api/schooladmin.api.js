@@ -96,3 +96,7 @@ export const reviewCorrection   = (id, data) => api.patch(`/schooladmin/correcti
 export const getHolidays        = (params) => api.get('/schooladmin/holidays', { params });
 export const createHoliday      = (data)   => api.post('/schooladmin/holidays', data);
 export const deleteHoliday      = (id)     => api.delete(`/schooladmin/holidays/${id}`);
+
+// Marks Lock/Unlock
+export const getMarksLockOverview = (params) => api.get('/schooladmin/marks-lock/overview', { params });
+export const setMarksLockStatus   = (examSubjectId, data) => api.patch(`/schooladmin/marks-lock/exam-subject/${examSubjectId}`, data);

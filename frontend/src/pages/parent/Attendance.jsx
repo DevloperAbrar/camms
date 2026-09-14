@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Calendar, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
 import {
   getMyChildren,
@@ -19,7 +19,7 @@ const STATUS_STYLES = {
 function CalendarGrid({ year, month, records = [], holidays = [] }) {
   const firstDay   = getDay(startOfMonth(new Date(year, month - 1, 1)));
   const totalDays  = getDaysInMonth(new Date(year, month - 1, 1));
-  const dayLabels  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayLabels  = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   const recordMap = {};
   records.forEach((r) => {
@@ -35,8 +35,8 @@ function CalendarGrid({ year, month, records = [], holidays = [] }) {
   return (
     <div>
       <div className="grid grid-cols-7 mb-1">
-        {dayLabels.map((l) => (
-          <div key={l} className="text-center text-xs font-semibold text-[#94a3b8] py-1">{l}</div>
+        {dayLabels.map((l, i) => (
+          <div key={`${l}-${i}`} className="text-center text-[10px] sm:text-xs font-semibold text-[#94a3b8] py-1">{l}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
@@ -47,7 +47,7 @@ function CalendarGrid({ year, month, records = [], holidays = [] }) {
           return (
             <div
               key={day}
-              className={`aspect-square flex flex-col items-center justify-center rounded-lg text-xs transition-all ${
+              className={`aspect-square flex flex-col items-center justify-center rounded-md sm:rounded-lg text-[10px] sm:text-xs transition-all ${
                 isHoliday
                   ? 'bg-purple-50 text-purple-600 font-semibold'
                   : status
@@ -56,9 +56,9 @@ function CalendarGrid({ year, month, records = [], holidays = [] }) {
               }`}
             >
               <span>{day}</span>
-              {isHoliday && <span className="text-[9px] leading-none mt-0.5">Hol</span>}
+              {isHoliday && <span className="text-[8px] sm:text-[9px] leading-none mt-0.5">Hol</span>}
               {!isHoliday && status && (
-                <span className="text-[9px] leading-none mt-0.5 capitalize">{status.charAt(0).toUpperCase()}</span>
+                <span className="text-[8px] sm:text-[9px] leading-none mt-0.5 capitalize">{status.charAt(0).toUpperCase()}</span>
               )}
             </div>
           );
@@ -74,25 +74,23 @@ export default function ParentAttendance() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [childId, setChildId] = useState('');
 
-  // Children
   const { data: children = [], isLoading: loadingChildren } = useQuery({
     queryKey: ['my-children'],
     queryFn: () => getMyChildren().then((r) => r.data.data ?? []),
-    onSuccess: (data) => { if (data.length > 0 && !childId) setChildId(data[0].id); },
   });
 
-  // Calendar
+  const activeChildId = childId || children[0]?.id || '';
+
   const { data: calData, isLoading: loadingCal, isError: calError } = useQuery({
-    queryKey: ['attendance-calendar', childId, year, month],
-    queryFn: () => getAttendanceCalendar({ studentId: childId, year, month }).then((r) => r.data.data),
-    enabled: !!childId,
+    queryKey: ['attendance-calendar', activeChildId, year, month],
+    queryFn: () => getAttendanceCalendar({ studentId: activeChildId, year, month }).then((r) => r.data.data),
+    enabled: !!activeChildId,
   });
 
-  // Subject-wise
   const { data: subjectData = [], isLoading: loadingSubject } = useQuery({
-    queryKey: ['attendance-subject', childId],
-    queryFn: () => getSubjectWiseAttendance({ studentId: childId }).then((r) => r.data.data ?? []),
-    enabled: !!childId,
+    queryKey: ['attendance-subject', activeChildId],
+    queryFn: () => getSubjectWiseAttendance({ studentId: activeChildId }).then((r) => r.data.data ?? []),
+    enabled: !!activeChildId,
   });
 
   function prevMonth() {
@@ -110,21 +108,20 @@ export default function ParentAttendance() {
   const pctColor = pct === null ? 'text-[#94a3b8]' : pct >= 75 ? 'text-green-600' : pct >= 60 ? 'text-amber-600' : 'text-red-600';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold text-[#1e293b]">Attendance</h1>
+        <h1 className="text-xl sm:text-2xl font-extrabold text-[#1e293b]">Attendance</h1>
         <p className="text-sm text-[#64748b] mt-1">Monthly calendar and subject-wise breakdown.</p>
       </div>
 
-      {/* Child selector */}
       {children.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {children.map((c) => (
             <button
               key={c.id}
               onClick={() => setChildId(c.id)}
-              className={`px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
-                childId === c.id
+              className={`px-3 sm:px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
+                activeChildId === c.id
                   ? 'border-[#f97316] bg-orange-50 text-[#f97316]'
                   : 'border-[#e2e8f0] text-[#64748b] hover:border-[#f97316]'
               }`}
@@ -137,13 +134,11 @@ export default function ParentAttendance() {
 
       {loadingChildren ? (
         <div className="flex justify-center py-16"><Spinner /></div>
-      ) : !childId ? (
+      ) : !activeChildId ? (
         <Card><p className="text-sm text-[#94a3b8] text-center py-8">No children found.</p></Card>
       ) : (
         <>
-          {/* Calendar */}
-          <Card>
-            {/* Month nav */}
+          <Card className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={prevMonth}
@@ -152,11 +147,11 @@ export default function ParentAttendance() {
                 <ChevronLeft size={18} />
               </button>
               <div className="text-center">
-                <p className="font-bold text-[#1e293b] text-lg">
+                <p className="font-bold text-[#1e293b] text-base sm:text-lg">
                   {format(new Date(year, month - 1, 1), 'MMMM yyyy')}
                 </p>
                 {pct !== null && (
-                  <p className={`text-sm font-semibold ${pctColor}`}>{pct}% attendance this month</p>
+                  <p className={`text-xs sm:text-sm font-semibold ${pctColor}`}>{pct}% attendance this month</p>
                 )}
               </div>
               <button
@@ -168,8 +163,7 @@ export default function ParentAttendance() {
               </button>
             </div>
 
-            {/* Legend */}
-            <div className="flex flex-wrap gap-3 mb-4 text-xs">
+            <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 text-[10px] sm:text-xs">
               {[
                 { label: 'Present', cls: 'bg-green-100 text-green-700' },
                 { label: 'Absent',  cls: 'bg-red-100 text-red-700' },
@@ -183,8 +177,8 @@ export default function ParentAttendance() {
             {loadingCal ? (
               <div className="flex justify-center py-10"><Spinner /></div>
             ) : calError ? (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-                <AlertTriangle size={16} /> No active enrollment found for this student.
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <AlertTriangle size={16} className="shrink-0" /> No active enrollment found for this student.
               </div>
             ) : (
               <>
@@ -194,29 +188,27 @@ export default function ParentAttendance() {
                   records={calData?.records ?? []}
                   holidays={calData?.holidays ?? []}
                 />
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                  <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
-                    <p className="text-xl font-bold text-green-700">{calData?.presentDays ?? 0}</p>
-                    <p className="text-xs text-green-600 mt-0.5">Present</p>
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
+                  <div className="bg-green-50 rounded-xl p-2 sm:p-3 text-center border border-green-100">
+                    <p className="text-lg sm:text-xl font-bold text-green-700">{calData?.presentDays ?? 0}</p>
+                    <p className="text-[10px] sm:text-xs text-green-600 mt-0.5">Present</p>
                   </div>
-                  <div className="bg-red-50 rounded-xl p-3 text-center border border-red-100">
-                    <p className="text-xl font-bold text-red-700">
+                  <div className="bg-red-50 rounded-xl p-2 sm:p-3 text-center border border-red-100">
+                    <p className="text-lg sm:text-xl font-bold text-red-700">
                       {(calData?.totalDays ?? 0) - (calData?.presentDays ?? 0)}
                     </p>
-                    <p className="text-xs text-red-600 mt-0.5">Absent / Late</p>
+                    <p className="text-[10px] sm:text-xs text-red-600 mt-0.5">Absent / Late</p>
                   </div>
-                  <div className="bg-[#f8fafc] rounded-xl p-3 text-center border border-[#e2e8f0]">
-                    <p className="text-xl font-bold text-[#1e293b]">{calData?.totalDays ?? 0}</p>
-                    <p className="text-xs text-[#64748b] mt-0.5">Total Days</p>
+                  <div className="bg-[#f8fafc] rounded-xl p-2 sm:p-3 text-center border border-[#e2e8f0]">
+                    <p className="text-lg sm:text-xl font-bold text-[#1e293b]">{calData?.totalDays ?? 0}</p>
+                    <p className="text-[10px] sm:text-xs text-[#64748b] mt-0.5">Total Days</p>
                   </div>
                 </div>
               </>
             )}
           </Card>
 
-          {/* Subject-wise */}
-          <Card>
+          <Card className="p-4 sm:p-6">
             <h2 className="text-base font-bold text-[#1e293b] mb-4">Subject-wise Attendance</h2>
             {loadingSubject ? (
               <div className="flex justify-center py-8"><Spinner /></div>
@@ -229,9 +221,9 @@ export default function ParentAttendance() {
                   const barColor = pctNum >= 75 ? 'bg-green-500' : pctNum >= 60 ? 'bg-amber-500' : 'bg-red-500';
                   return (
                     <div key={s.subject}>
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold text-[#1e293b]">{s.subject}</p>
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between mb-1 gap-2">
+                        <p className="text-sm font-semibold text-[#1e293b] truncate">{s.subject}</p>
+                        <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs text-[#64748b]">{s.present}/{s.totalClasses}</span>
                           <span className={`text-xs font-bold ${pctNum >= 75 ? 'text-green-600' : pctNum >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
                             {pctNum}%
@@ -246,7 +238,7 @@ export default function ParentAttendance() {
                       </div>
                       {pctNum < 75 && (
                         <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                          <AlertTriangle size={11} /> Below 75% — attendance at risk
+                          <AlertTriangle size={11} className="shrink-0" /> Below 75% — attendance at risk
                         </p>
                       )}
                     </div>

@@ -58,6 +58,15 @@ const reviewCorrectionSchema = z.object({
   reviewNote: z.string().optional(),
 });
 
+const setMarksLockSchema = z.object({
+  locked: z.boolean(),
+  reason: z.string().min(5).optional(),
+}).superRefine((data, ctx) => {
+  if (data.locked === false && !data.reason) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'A reason is required to unlock marks' });
+  }
+});
+
 module.exports = {
   createExamTypeSchema,
   addExamSubjectSchema,
@@ -69,4 +78,5 @@ module.exports = {
   overrideMarkSchema,
   createHolidaySchema,
   reviewCorrectionSchema,
+  setMarksLockSchema
 };
