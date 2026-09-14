@@ -1,7 +1,7 @@
 const PDFDocument = require('pdfkit');
 const { prisma } = require('../config/db');
 
-async function generateStudentReportCardPDF({ studentId, sessionId, schoolId }) {
+async function generateStudentReportCardPDF({ studentId, sessionId, schoolId, examTypeId }) {
   const school = await prisma.school.findUnique({ where: { id: schoolId } });
 
   const enrollment = await prisma.enrollment.findFirst({
@@ -17,7 +17,7 @@ async function generateStudentReportCardPDF({ studentId, sessionId, schoolId }) 
   if (!enrollment) throw new Error('Enrollment not found for this student/session');
 
   const examTypes = await prisma.examType.findMany({
-    where: { sessionId, classId: enrollment.classId },
+    where: { sessionId, classId: enrollment.classId, ...(examTypeId ? { id: examTypeId } : {}) },
     include: {
       examSubjects: {
         include: {
@@ -89,7 +89,10 @@ async function generateStudentReportCardPDF({ studentId, sessionId, schoolId }) 
         .text(school.address || school.contactEmail, M, 43, { width: CW, align: 'center' });
     }
     doc.font('Helvetica-Bold').fontSize(11).fillColor(ORANGE)
-      .text('STUDENT REPORT CARD', M, 63, { width: CW, align: 'center', characterSpacing: 1.2 });
+      .text(
+        examTypeId && examTypes[0] ? `${examTypes[0].name.toUpperCase()} — REPORT` : 'STUDENT REPORT CARD',
+        M, 63, { width: CW, align: 'center', characterSpacing: 1.2 }
+      );
 
     y = 110;
 
@@ -228,4 +231,217 @@ async function generateStudentReportCardPDF({ studentId, sessionId, schoolId }) 
   });
 }
 
-module.exports = { generateStudentReportCardPDF };
+// ═══════════════════════════════════════════════════════════════════════════
+// Generic branded table report — used by all analytics PDF downloads
+// (Marks Report, Attendance Report, Defaulters, Class/Section Performance,
+// Student Progress). Same navy/orange theme as the report card above.
+// ═══════════════════════════════════════════════════════════════════════════
+async function generateTableReportPDF({ schoolId, title, subtitle, metaBadges = [], summaryStats = [], sections = [] }) {
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+    const buffers = [];
+    doc.on('data', (chunk) => buffers.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(buffers)));
+    doc.on('error', reject);
+
+    // ── THEME ──────────────────────────────────────────────────────────────
+    const NAVY      = '#1e293b';
+    const ORANGE    = '#f97316';
+    const LIGHT     = '#f8fafc';
+    const HEADER_BG = '#eef2f7';
+    const BORDER    = '#e2e8f0';
+    const TEXT      = '#334155';
+    const MUTED     = '#94a3b8';
+    const GREEN     = '#15803d';
+    const GREEN_BG  = '#e9f9ee';
+    const RED       = '#dc2626';
+    const RED_BG    = '#fdecec';
+    const AMBER     = '#b45309';
+    const AMBER_BG  = '#fef6e7';
+    const TONE = {
+      good: [GREEN, GREEN_BG],
+      bad: [RED, RED_BG],
+      warn: [AMBER, AMBER_BG],
+      neutral: [MUTED, HEADER_BG],
+    };
+
+    const M        = 40;
+    const PAGE_W   = doc.page.width;
+    const PAGE_H   = doc.page.height;
+    const CW       = PAGE_W - M * 2;
+    const FOOTER_Y = PAGE_H - 55;
+
+    let y = M;
+
+    function newPageIfNeeded(need) {
+      if (y + need > FOOTER_Y - 10) {
+        doc.addPage();
+        y = M;
+      }
+    }
+
+    function hr(atY, color = BORDER, width = 0.5) {
+      doc.strokeColor(color).lineWidth(width).moveTo(M, atY).lineTo(M + CW, atY).stroke();
+    }
+
+    // ── HEADER BAND ──────────────────────────────────────────────────────
+    doc.rect(0, 0, PAGE_W, 90).fill(NAVY);
+    doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
+      .text(school?.name || 'School', M, 20, { width: CW, align: 'center' });
+    if (school?.address || school?.contactEmail) {
+      doc.font('Helvetica').fontSize(9).fillColor('#cbd5e1')
+        .text(school.address || school.contactEmail, M, 43, { width: CW, align: 'center' });
+    }
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(ORANGE)
+      .text(String(title || 'Report').toUpperCase(), M, 63, { width: CW, align: 'center', characterSpacing: 1.2 });
+
+    y = 110;
+
+    if (subtitle) {
+      doc.font('Helvetica').fontSize(10).fillColor(TEXT).text(subtitle, M, y, { width: CW, align: 'center' });
+      y += 20;
+    }
+
+    // ── META BADGES ────────────────────────────────────────────────────
+    if (metaBadges.length) {
+      doc.font('Helvetica-Bold').fontSize(8);
+      const pad = 10, gap = 8;
+      const widths = metaBadges.map((t) => doc.widthOfString(t) + pad * 2);
+      const totalW = widths.reduce((a, b) => a + b, 0) + gap * (metaBadges.length - 1);
+      let bx = M + (CW - totalW) / 2;
+      metaBadges.forEach((t, i) => {
+        doc.roundedRect(bx, y, widths[i], 20, 10).fillAndStroke(HEADER_BG, BORDER);
+        doc.fillColor(NAVY).text(t, bx, y + 6, { width: widths[i], align: 'center' });
+        bx += widths[i] + gap;
+      });
+      y += 20 + 16;
+    }
+
+    // ── SUMMARY STAT CARDS ─────────────────────────────────────────────
+    if (summaryStats.length) {
+      const gap = 12;
+      const cardW = (CW - gap * (summaryStats.length - 1)) / summaryStats.length;
+      const cardH = 50;
+      summaryStats.forEach((s, i) => {
+        const [color, bg] = TONE[s.tone] || TONE.neutral;
+        const cx = M + i * (cardW + gap);
+        doc.roundedRect(cx, y, cardW, cardH, 6).fillAndStroke(bg, BORDER);
+        doc.font('Helvetica-Bold').fontSize(18).fillColor(color)
+          .text(String(s.value), cx, y + 10, { width: cardW, align: 'center' });
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT)
+          .text(s.label, cx, y + 32, { width: cardW, align: 'center' });
+      });
+      y += cardH + 20;
+    }
+
+    // ── SECTIONS (heading + table) ───────────────────────────────────────
+    sections.forEach((section) => {
+      newPageIfNeeded(60);
+
+      doc.roundedRect(M, y, CW, 24, 4).fill(NAVY);
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff')
+        .text(String(section.heading || '').toUpperCase(), M + 12, y + 7);
+      if (section.note) {
+        doc.font('Helvetica').fontSize(8).fillColor('#cbd5e1')
+          .text(section.note, M, y + 8, { width: CW - 14, align: 'right' });
+      }
+      y += 24;
+
+      const columns = section.columns || [];
+      let cursorX = M;
+      const colPos = columns.map((col) => {
+        const width = col.width * CW;
+        const pos = { x: cursorX, width };
+        cursorX += width;
+        return pos;
+      });
+
+      doc.rect(M, y, CW, 20).fill(HEADER_BG);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b');
+      columns.forEach((col, i) => {
+        const pos = colPos[i];
+        const padL = i === 0 ? 10 : 0;
+        const padR = i === columns.length - 1 ? 10 : 0;
+        doc.text(String(col.label || '').toUpperCase(), pos.x + padL, y + 6, {
+          width: pos.width - padL - padR,
+          align: col.align || 'left',
+        });
+      });
+      y += 20;
+      hr(y, BORDER, 1);
+
+      const rows = section.rows || [];
+      const rowH = 24;
+
+      if (!rows.length) {
+        newPageIfNeeded(30);
+        doc.font('Helvetica').fontSize(9).fillColor(MUTED)
+          .text('No records found', M, y + 10, { width: CW, align: 'center' });
+        y += 40;
+        return;
+      }
+
+      rows.forEach((r, idx) => {
+        newPageIfNeeded(rowH + 8);
+
+        doc.rect(M, y, CW, rowH).fill(idx % 2 === 0 ? '#ffffff' : '#fafbfc');
+
+        columns.forEach((col, i) => {
+          const pos = colPos[i];
+          const padL = i === 0 ? 10 : 0;
+          const padR = i === columns.length - 1 ? 10 : 0;
+
+          if (col.badge) {
+            const badge = col.badge(r);
+            if (badge) {
+              const [color, bg] = TONE[badge.tone] || TONE.neutral;
+              const pillW = Math.min(pos.width - 16, 74);
+              const pillX = pos.x + (pos.width - pillW) / 2;
+              doc.roundedRect(pillX, y + 5, pillW, rowH - 10, 8).fill(bg);
+              doc.font('Helvetica-Bold').fontSize(7.5).fillColor(color)
+                .text(badge.text, pillX, y + 9, { width: pillW, align: 'center' });
+              return;
+            }
+          }
+
+          const displayValue = col.value ? col.value(r) : (r[col.key] != null ? String(r[col.key]) : '—');
+          const textColor = col.colorFn ? col.colorFn(r) : TEXT;
+          doc.font(col.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5).fillColor(textColor)
+            .text(displayValue, pos.x + padL, y + 7, {
+              width: pos.width - padL - padR,
+              align: col.align || 'left',
+            });
+        });
+
+        y += rowH;
+        hr(y);
+      });
+
+      y += 16;
+    });
+
+    // ── FOOTER (page number + generated date, on every page) ────────────
+    const savedBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      hr(FOOTER_Y, BORDER, 0.75);
+      doc.font('Helvetica').fontSize(8).fillColor(MUTED)
+        .text(
+          `Generated by CampusSafar AMMS  •  ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+          M, FOOTER_Y + 10, { width: CW / 2, lineBreak: false }
+        );
+      doc.text(`Page ${i - range.start + 1} of ${range.count}`, M + CW / 2, FOOTER_Y + 10, { width: CW / 2, align: 'right', lineBreak: false });
+    }
+
+    doc.page.margins.bottom = savedBottomMargin;
+
+    doc.end();
+  });
+}
+
+module.exports = { generateStudentReportCardPDF, generateTableReportPDF };

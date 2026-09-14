@@ -5,7 +5,7 @@ const { prisma } = require('../../config/db');
 const { generateStudentReportCardPDF } = require('../../services/pdf.service');
 
 const downloadReportCardPDF = asyncHandler(async (req, res) => {
-  const { studentId, sessionId } = req.query;
+  const { studentId, sessionId, examTypeId } = req.query;
 
   if (!studentId || !sessionId) {
     return ApiResponse.error(res, 422, 'studentId and sessionId are required');
@@ -15,12 +15,13 @@ const downloadReportCardPDF = asyncHandler(async (req, res) => {
     studentId,
     sessionId,
     schoolId: req.schoolId,
+    examTypeId: examTypeId || undefined,
   });
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader(
     'Content-Disposition',
-    `attachment; filename="report-card-${studentId}.pdf"`
+    `attachment; filename="report-card-${studentId}${examTypeId ? '-' + examTypeId : ''}.pdf"`
   );
   res.setHeader('Content-Length', pdfBuffer.length);
   return res.end(pdfBuffer);

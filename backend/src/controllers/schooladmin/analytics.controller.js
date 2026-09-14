@@ -80,13 +80,14 @@ const getStudentReportCard = asyncHandler(async (req, res) => {
   });
 
   const reportCard = examTypes.map((et) => ({
+    examTypeId: et.id,
     examType: et.name,
     weightagePercent: et.weightagePercent,
     subjects: et.examSubjects.map((es) => ({
       subject: es.subject.name,
-      maxMarks: es.maxMarks,
-      passingMarks: es.passingMarks,
-      marksObtained: es.marks[0] ? es.marks[0].marksObtained : null,
+      maxMarks: Number(es.maxMarks),
+      passingMarks: Number(es.passingMarks),
+      marksObtained: es.marks[0] ? Number(es.marks[0].marksObtained) : null,
     })),
   }));
 

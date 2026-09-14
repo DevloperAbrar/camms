@@ -849,6 +849,24 @@ function StudentReportCard() {
     },
   });
 
+  // Per-exam-type PDF download — one button per exam block.
+  const [examPdfLoadingId, setExamPdfLoadingId] = useState('');
+  const downloadExamPdf = useMutation({
+    mutationFn: (et) => downloadMyReportCard({ studentId, sessionId, examTypeId: et.examTypeId }).then((res) => ({ res, et })),
+    onMutate: (et) => setExamPdfLoadingId(et.examTypeId),
+    onSuccess: ({ res, et }) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `report-card-${studentId}-${et.examType.replace(/\s/g, '-')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    },
+    onSettled: () => setExamPdfLoadingId(''),
+  });
+
   function handleExcelExport() {
     if (!reportCard) return;
     const rows = [];
@@ -1084,6 +1102,15 @@ function StudentReportCard() {
                                 variant={parseFloat(pct) >= 40 ? 'success' : 'danger'}
                               />
                             )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              icon={Download}
+                              loading={examPdfLoadingId === et.examTypeId}
+                              onClick={() => downloadExamPdf.mutate(et)}
+                            >
+                              Download PDF
+                            </Button>
                           </div>
                         </div>
 

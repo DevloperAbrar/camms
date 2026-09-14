@@ -561,6 +561,17 @@ function StudentReportCard() {
     );
   }
 
+  // Per-exam-type PDF download — one button per exam block, e.g. just
+  // "Periodic Test 1" or just "Half Yearly Exam" instead of the full card.
+  const [examPdfLoadingId, setExamPdfLoadingId] = useState('');
+  function handleExamPDF(et) {
+    downloadPDF(
+      () => downloadReportCard({ studentId, sessionId, examTypeId: et.examTypeId }),
+      `report-card-${reportCard?.student?.replace(/\s/g, '-') || studentId}-${et.examType.replace(/\s/g, '-')}.pdf`,
+      (loading) => setExamPdfLoadingId(loading ? et.examTypeId : ''),
+    );
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -650,6 +661,15 @@ function StudentReportCard() {
                       <div className="flex items-center gap-2">
                         {et.weightagePercent != null && <Badge label={`${et.weightagePercent}% weightage`} variant="navy" />}
                         {pct != null && <Badge label={`${pct}%`} variant={parseFloat(pct) >= 40 ? 'success' : 'danger'} />}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          icon={Download}
+                          onClick={() => handleExamPDF(et)}
+                          loading={examPdfLoadingId === et.examTypeId}
+                        >
+                          Download PDF
+                        </Button>
                       </div>
                     </div>
                     <table className="w-full text-sm">

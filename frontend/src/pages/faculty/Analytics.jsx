@@ -123,7 +123,7 @@ export default function FacultyAnalytics() {
   ).values()];
   const sectionsForClass = [...new Map(
     assignments.filter((a) => a.sessionId === sessionId && a.class.id === classId)
-      .map((a) => [a.section.id, a.section])
+      .map((a) => [a.section.id, { ...a.section, isClassTeacher: a.isClassTeacher }])
   ).values()];
 
   useEffect(() => {
@@ -189,6 +189,12 @@ export default function FacultyAnalytics() {
 
   const hasSection = !!(sessionId && classId && sectionId);
   const hasClass   = !!(sessionId && classId);
+  const isClassTeacherOfClass = assignments.some(
+    (a) => a.sessionId === sessionId && a.class.id === classId && a.isClassTeacher
+  );
+  const isClassTeacherOfSection = assignments.some(
+    (a) => a.sessionId === sessionId && a.class.id === classId && a.section.id === sectionId && a.isClassTeacher
+  );
 
   return (
     <div className="space-y-6 pb-8">
@@ -215,7 +221,9 @@ export default function FacultyAnalytics() {
           </Select>
           <Select value={sectionId} onChange={setSectionId} disabled={!classId}>
             <option value="">All sections</option>
-            {sectionsForClass.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {sectionsForClass.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}{s.isClassTeacher ? ' (Class Teacher)' : ''}</option>
+            ))}
           </Select>
         </div>
       </div>
@@ -265,33 +273,66 @@ export default function FacultyAnalytics() {
           {/* ── ATTENDANCE TAB ── */}
           {activeTab === 'attendance' && (
             <div className="space-y-5">
-              {sectionComparison.length > 0 && (
-                <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
-                  <SectionHeader icon={BarChart2} title="Section Comparison" sub="Overall attendance % per class-section" />
-                  <div className="space-y-3">
-                    {sectionComparison.map((s) => (
-                      <div key={`${s.classId}-${s.sectionId}`}>
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="font-semibold text-[#1e293b]">{s.label}</span>
-                          <span className={`font-bold ${s.pct >= 85 ? 'text-green-600' : s.pct >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
-                            {s.pct !== null ? `${s.pct}%` : '—'}
-                          </span>
+              {sectionComparison.length > 0 && (() => {
+                const ctSections = sectionComparison.filter((s) => s.isClassTeacher);
+                const subjSections = sectionComparison.filter((s) => !s.isClassTeacher);
+
+                const Group = ({ title, sub, icon: Icon, items }) => (
+                  <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
+                    <SectionHeader icon={Icon} title={title} sub={sub} />
+                    <div className="space-y-3">
+                      {items.map((s) => (
+                        <div key={`${s.classId}-${s.sectionId}`}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="font-semibold text-[#1e293b] flex items-center gap-2">
+                              {s.label}
+                              {s.isClassTeacher && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#f97316]/10 text-[#f97316]">
+                                  CLASS TEACHER
+                                </span>
+                              )}
+                            </span>
+                            <span className={`font-bold ${s.pct >= 85 ? 'text-green-600' : s.pct >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+                              {s.pct !== null ? `${s.pct}%` : '—'}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-[#f1f5f9] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${s.pct ?? 0}%`,
+                                background: s.pct >= 85 ? C.green : s.pct >= 70 ? C.amber : C.red,
+                              }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-[#94a3b8] mt-0.5">{s.totalStudents} students</p>
                         </div>
-                        <div className="h-2 bg-[#f1f5f9] rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${s.pct ?? 0}%`,
-                              background: s.pct >= 85 ? C.green : s.pct >= 70 ? C.amber : C.red,
-                            }}
-                          />
-                        </div>
-                        <p className="text-[10px] text-[#94a3b8] mt-0.5">{s.totalStudents} students</p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+
+                return (
+                  <>
+                    {ctSections.length > 0 && (
+                      <Group
+                        title="Your Class Teacher Sections"
+                        sub="Full-section attendance for classes you're the class teacher of"
+                        icon={Users}
+                        items={ctSections}
+                      />
+                    )}
+                    {subjSections.length > 0 && (
+                      <Group
+                        title="Your Subject-Wise Sections"
+                        sub="Sections where you teach a subject (not class teacher)"
+                        icon={BookOpen}
+                        items={subjSections}
+                      />
+                    )}
+                  </>
+                );
+              })()}
 
               {weekly && (
                 <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
@@ -358,6 +399,22 @@ export default function FacultyAnalytics() {
                 </div>
               )}
               {hasClass && loadingMarks && <div className="flex justify-center py-16"><Spinner size="lg" /></div>}
+              {hasClass && !loadingMarks && (
+                <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${
+                  isClassTeacherOfClass ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'
+                }`}>
+                  {isClassTeacherOfClass ? (
+                    <Users size={16} className="text-[#f97316] mt-0.5 shrink-0" />
+                  ) : (
+                    <BookOpen size={16} className="text-blue-500 mt-0.5 shrink-0" />
+                  )}
+                  <p className={`text-xs ${isClassTeacherOfClass ? 'text-orange-700' : 'text-blue-700'}`}>
+                    {isClassTeacherOfClass
+                      ? "You're the Class Teacher for this class — showing marks for every subject taught."
+                      : 'Showing marks for the subject(s) you personally teach in this class.'}
+                  </p>
+                </div>
+              )}
               {hasClass && !loadingMarks && marksSummary.length === 0 && (
                 <div className="flex flex-col items-center py-16 text-[#94a3b8] text-sm gap-2">
                   <BookOpen size={36} className="text-[#e2e8f0]" />
@@ -441,6 +498,20 @@ export default function FacultyAnalytics() {
               )}
               {hasSection && !loadingStudents && students.length > 0 && (
                 <>
+                  <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${
+                    isClassTeacherOfSection ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'
+                  }`}>
+                    {isClassTeacherOfSection ? (
+                      <Users size={16} className="text-[#f97316] mt-0.5 shrink-0" />
+                    ) : (
+                      <BookOpen size={16} className="text-blue-500 mt-0.5 shrink-0" />
+                    )}
+                    <p className={`text-xs ${isClassTeacherOfSection ? 'text-orange-700' : 'text-blue-700'}`}>
+                      {isClassTeacherOfSection
+                        ? "You're the Class Teacher of this section — full attendance visibility."
+                        : "You view this section's overall attendance as a subject-assigned faculty."}
+                    </p>
+                  </div>
                   {atRiskStudents.length > 0 && (
                     <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
                       <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />

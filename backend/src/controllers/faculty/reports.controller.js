@@ -266,6 +266,7 @@ const getMyStudentReportCard = asyncHandler(async (req, res) => {
   });
 
   const reportCard = examTypes.map(et => ({
+    examTypeId:      et.id,
     examType:        et.name,
     weightagePercent: et.weightagePercent ?? null,
     subjects: et.examSubjects.map(es => ({
@@ -287,7 +288,7 @@ const getMyStudentReportCard = asyncHandler(async (req, res) => {
 
 // GET /faculty/reports/report-card-pdf
 const downloadMyStudentReportCardPDF = asyncHandler(async (req, res) => {
-  const { studentId, sessionId } = req.query;
+  const { studentId, sessionId, examTypeId } = req.query;
   const facultyId = req.user.id;
   const schoolId = req.schoolId;
 
@@ -308,10 +309,10 @@ const downloadMyStudentReportCardPDF = asyncHandler(async (req, res) => {
     return ApiResponse.error(res, 403, 'Access denied to this student');
   }
 
-  const pdfBuffer = await generateStudentReportCardPDF({ studentId, sessionId, schoolId });
+  const pdfBuffer = await generateStudentReportCardPDF({ studentId, sessionId, schoolId, examTypeId: examTypeId || undefined });
 
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="report-card-${studentId}.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="report-card-${studentId}${examTypeId ? '-' + examTypeId : ''}.pdf"`);
   res.setHeader('Content-Length', pdfBuffer.length);
   return res.end(pdfBuffer);
 });
