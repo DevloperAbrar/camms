@@ -69,6 +69,15 @@ export const getAttendanceDefaulters = (params) => api.get('/schooladmin/analyti
 export const getAttendanceReport     = (params) => api.get('/schooladmin/analytics/attendance-report', { params });
 export const getMarksReport = (params) => api.get('/schooladmin/analytics/marks-report', { params });
 export const getMarksDefaulters = (params) => api.get('/schooladmin/analytics/marks-defaulters', { params });
+export const downloadBulkReportCardsZip = (params) => api.get('/schooladmin/analytics/bulk-report-cards-pdf', { params, responseType: 'blob' });
+
+// Analytics — branded PDF downloads (same data as above, rendered server-side)
+export const downloadAttendanceReportPDF     = (params) => api.get('/schooladmin/analytics/attendance-report-pdf', { params, responseType: 'blob' });
+export const downloadMarksReportPDF          = (params) => api.get('/schooladmin/analytics/marks-report-pdf', { params, responseType: 'blob' });
+export const downloadMarksDefaultersPDF      = (params) => api.get('/schooladmin/analytics/marks-defaulters-pdf', { params, responseType: 'blob' });
+export const downloadAttendanceDefaultersPDF = (params) => api.get('/schooladmin/analytics/attendance-defaulters-pdf', { params, responseType: 'blob' });
+export const downloadClassPerformancePDF     = (params) => api.get('/schooladmin/analytics/class-performance-pdf', { params, responseType: 'blob' });
+export const downloadStudentProgressPDF      = (params) => api.get('/schooladmin/analytics/student-progress-pdf', { params, responseType: 'blob' });
 
 // Analytics — dashboard additions (overview, comparisons, trends, performers, progress)
 export const getAnalyticsOverview = (params) => api.get('/schooladmin/analytics/overview', { params });

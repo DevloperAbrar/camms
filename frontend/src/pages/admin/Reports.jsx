@@ -10,7 +10,10 @@ import {
   getAttendanceReport, getMarksReport,
   getAttendanceDefaulters, getMarksDefaulters,
   getClassComparison, getSectionComparison, getStudentProgress,
-  getReportCard,
+  getReportCard, downloadReportCard,
+  downloadAttendanceReportPDF, downloadMarksReportPDF,
+  downloadMarksDefaultersPDF, downloadAttendanceDefaultersPDF,
+  downloadClassPerformancePDF, downloadStudentProgressPDF, downloadBulkReportCardsZip,
 } from '../../api/schooladmin.api';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -19,14 +22,14 @@ import Spinner from '../../components/ui/Spinner';
 
 // ─── MENU ────────────────────────────────────────────────────────────────────
 const MENU = [
-  { key: 'attendance',         label: 'Attendance Report',       icon: Calendar,       desc: 'Day-wise, weekly, custom-range attendance with filters' },
-  { key: 'marks',              label: 'Marks Report',            icon: BarChart3,      desc: 'Subject & exam-wise marks with pass/fail breakdown' },
-  { key: 'student-report',     label: 'Student Report Card',     icon: FileText,       desc: 'Individual student full report card PDF / Excel' },
-  { key: 'class-performance',  label: 'Class Performance',       icon: TrendingUp,     desc: 'Class & section-wise comparison and export' },
-  { key: 'marks-defaulters',   label: 'Marks Defaulters',        icon: AlertTriangle,  desc: 'Students below passing marks list with export' },
-  { key: 'attendance-defaulters', label: 'Attendance Defaulters', icon: UserCheck,    desc: 'Low attendance students filterable by threshold' },
-  { key: 'student-progress',   label: 'Student Progress',        icon: Activity,       desc: 'Individual student exam trend + attendance history' },
-  { key: 'bulk-download',      label: 'Bulk Download',           icon: Download,       desc: 'Download all class report cards in one click' },
+  { key: 'attendance', label: 'Attendance Report', icon: Calendar, desc: 'Day-wise, weekly, custom-range attendance with filters' },
+  { key: 'marks', label: 'Marks Report', icon: BarChart3, desc: 'Subject & exam-wise marks with pass/fail breakdown' },
+  { key: 'student-report', label: 'Student Report Card', icon: FileText, desc: 'Individual student full report card PDF / Excel' },
+  { key: 'class-performance', label: 'Class Performance', icon: TrendingUp, desc: 'Class & section-wise comparison and export' },
+  { key: 'marks-defaulters', label: 'Marks Defaulters', icon: AlertTriangle, desc: 'Students below passing marks list with export' },
+  { key: 'attendance-defaulters', label: 'Attendance Defaulters', icon: UserCheck, desc: 'Low attendance students filterable by threshold' },
+  { key: 'student-progress', label: 'Student Progress', icon: Activity, desc: 'Individual student exam trend + attendance history' },
+  { key: 'bulk-download', label: 'Bulk Download', icon: Download, desc: 'Download all class report cards in one click' },
 ];
 
 // ─── SHARED HELPERS ───────────────────────────────────────────────────────────
@@ -106,6 +109,24 @@ function downloadCSV(csv, filename) {
   URL.revokeObjectURL(url);
 }
 
+async function downloadPDF(apiCall, filename, setLoading) {
+  try {
+    setLoading?.(true);
+    const res = await apiCall();
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Could not generate the PDF. Please try again.');
+  } finally {
+    setLoading?.(false);
+  }
+}
+
 function printDiv(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -161,9 +182,8 @@ export default function AdminReports() {
               const isActive = tab === m.key;
               return (
                 <button key={m.key} onClick={() => setTab(m.key)}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm font-semibold text-left whitespace-nowrap border-l-4 transition-colors shrink-0 lg:shrink ${
-                    isActive ? 'border-[#f97316] bg-[#fff7ed] text-[#f97316]' : 'border-transparent text-[#64748b] hover:bg-[#f8fafc] hover:text-[#1e293b]'
-                  }`}>
+                  className={`flex items-center gap-3 px-4 py-3 text-sm font-semibold text-left whitespace-nowrap border-l-4 transition-colors shrink-0 lg:shrink ${isActive ? 'border-[#f97316] bg-[#fff7ed] text-[#f97316]' : 'border-transparent text-[#64748b] hover:bg-[#f8fafc] hover:text-[#1e293b]'
+                    }`}>
                   <Icon size={17} />
                   {m.label}
                   {isActive && <ChevronRight size={14} className="ml-auto" />}
@@ -181,14 +201,14 @@ export default function AdminReports() {
           </div>
           <p className="text-xs text-[#64748b] -mt-2">{active?.desc}</p>
 
-          {tab === 'attendance'              && <AttendanceReport />}
-          {tab === 'marks'                   && <MarksReport />}
-          {tab === 'student-report'          && <StudentReportCard />}
-          {tab === 'class-performance'       && <ClassPerformanceReport />}
-          {tab === 'marks-defaulters'        && <MarksDefaultersReport />}
-          {tab === 'attendance-defaulters'   && <AttendanceDefaultersReport />}
-          {tab === 'student-progress'        && <StudentProgressReport />}
-          {tab === 'bulk-download'           && <BulkDownload />}
+          {tab === 'attendance' && <AttendanceReport />}
+          {tab === 'marks' && <MarksReport />}
+          {tab === 'student-report' && <StudentReportCard />}
+          {tab === 'class-performance' && <ClassPerformanceReport />}
+          {tab === 'marks-defaulters' && <MarksDefaultersReport />}
+          {tab === 'attendance-defaulters' && <AttendanceDefaultersReport />}
+          {tab === 'student-progress' && <StudentProgressReport />}
+          {tab === 'bulk-download' && <BulkDownload />}
         </div>
       </div>
     </div>
@@ -203,12 +223,13 @@ function AttendanceReport() {
   const [rangeType, setRangeType] = useState('monthly');
   const [fromDate, setFromDate] = useState(monthAgoStr());
   const [toDate, setToDate] = useState(todayStr());
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-attendance';
 
   // Derive from/to from rangeType
   useEffect(() => {
-    if (rangeType === 'daily')   { setFromDate(todayStr());    setToDate(todayStr()); }
-    if (rangeType === 'weekly')  { setFromDate(weekAgoStr());  setToDate(todayStr()); }
+    if (rangeType === 'daily') { setFromDate(todayStr()); setToDate(todayStr()); }
+    if (rangeType === 'weekly') { setFromDate(weekAgoStr()); setToDate(todayStr()); }
     if (rangeType === 'monthly') { setFromDate(monthAgoStr()); setToDate(todayStr()); }
   }, [rangeType]);
 
@@ -227,16 +248,24 @@ function AttendanceReport() {
   const rows = data || [];
 
   const columns = [
-    { key: 'studentName',         label: 'Student Name' },
-    { key: 'enrollmentNumber',    label: 'Enr. No.' },
-    { key: 'presentDays',         label: 'Present', value: (r) => r.presentDays ?? '-' },
-    { key: 'totalDays',           label: 'Total Days', value: (r) => r.totalDays ?? '-' },
+    { key: 'studentName', label: 'Student Name' },
+    { key: 'enrollmentNumber', label: 'Enr. No.' },
+    { key: 'presentDays', label: 'Present', value: (r) => r.presentDays ?? '-' },
+    { key: 'totalDays', label: 'Total Days', value: (r) => r.totalDays ?? '-' },
     { key: 'attendancePercentage', label: 'Attendance %', value: (r) => r.attendancePercentage != null ? `${r.attendancePercentage}%` : '-' },
-    { key: 'status',              label: 'Status', value: (r) => r.attendancePercentage == null ? 'No Data' : (r.attendancePercentage >= 75 ? 'Regular' : 'Low Attendance') },
+    { key: 'status', label: 'Status', value: (r) => r.attendancePercentage == null ? 'No Data' : (r.attendancePercentage >= 75 ? 'Regular' : 'Low Attendance') },
   ];
 
   function handleCSV() {
     downloadCSV(tableToCSV(columns, rows), `attendance-report-${fromDate}-to-${toDate}.csv`);
+  }
+
+  function handlePDF() {
+    downloadPDF(
+      () => downloadAttendanceReportPDF({ sessionId, classId: classId || undefined, sectionId: sectionId || undefined, fromDate, toDate }),
+      `attendance-report-${fromDate}-to-${toDate}.pdf`,
+      setPdfLoading,
+    );
   }
 
   return (
@@ -252,10 +281,10 @@ function AttendanceReport() {
             options={(selectedClass?.sections || []).map((s) => ({ value: s.id, label: s.name }))} placeholder="All sections" />
           <FilterSelect label="Date Range" value={rangeType} onChange={setRangeType}
             options={[
-              { value: 'daily',   label: 'Today' },
-              { value: 'weekly',  label: 'This Week' },
+              { value: 'daily', label: 'Today' },
+              { value: 'weekly', label: 'This Week' },
               { value: 'monthly', label: 'This Month' },
-              { value: 'custom',  label: 'Custom Range' },
+              { value: 'custom', label: 'Custom Range' },
             ]} />
         </div>
 
@@ -276,6 +305,7 @@ function AttendanceReport() {
 
         <div className="flex gap-2 mt-4 flex-wrap">
           <Button size="sm" variant="outline" icon={FileSpreadsheet} onClick={handleCSV} disabled={!rows.length}>Export Excel/CSV</Button>
+          <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading} disabled={!sessionId}>Download PDF</Button>
           <Button size="sm" variant="ghost" icon={Printer} onClick={() => printDiv(printId)} disabled={!rows.length}>Print / PDF</Button>
         </div>
       </Card>
@@ -347,6 +377,7 @@ function MarksReport() {
   const { sessions, sessionId, setSessionId, classesForSession, classId, setClassId, sectionId, setSectionId, selectedClass } = useSessionClass();
   const [examTypeId, setExamTypeId] = useState('');
   const [subjectId, setSubjectId] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-marks';
 
   const { data: examTypes } = useQuery({
@@ -372,16 +403,24 @@ function MarksReport() {
   const rows = marksRows || [];
 
   const columns = [
-    { key: 'studentName',      label: 'Student' },
+    { key: 'studentName', label: 'Student' },
     { key: 'enrollmentNumber', label: 'Enr. No.' },
-    { key: 'subject',          label: 'Subject' },
-    { key: 'marksObtained',    label: 'Marks', value: (r) => r.marksObtained },
-    { key: 'passingMarks',     label: 'Passing', value: (r) => r.passingMarks },
-    { key: 'result',           label: 'Result',  value: (r) => r.marksObtained >= r.passingMarks ? 'Pass' : 'Fail' },
+    { key: 'subject', label: 'Subject' },
+    { key: 'marksObtained', label: 'Marks', value: (r) => r.marksObtained },
+    { key: 'passingMarks', label: 'Passing', value: (r) => r.passingMarks },
+    { key: 'result', label: 'Result', value: (r) => r.marksObtained >= r.passingMarks ? 'Pass' : 'Fail' },
   ];
 
   function handleCSV() {
     downloadCSV(tableToCSV(columns, rows), `marks-report-${examTypeId}.csv`);
+  }
+
+  function handlePDF() {
+    downloadPDF(
+      () => downloadMarksReportPDF({ examTypeId, subjectId: subjectId || undefined, sectionId: sectionId || undefined }),
+      `marks-report-${examTypeId}.pdf`,
+      setPdfLoading,
+    );
   }
 
   return (
@@ -402,6 +441,7 @@ function MarksReport() {
 
         <div className="flex gap-2 mt-4 flex-wrap">
           <Button size="sm" variant="outline" icon={FileSpreadsheet} onClick={handleCSV} disabled={!rows.length}>Export Excel/CSV</Button>
+          <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading} disabled={!examTypeId}>Download PDF</Button>
           <Button size="sm" variant="ghost" icon={Printer} onClick={() => printDiv(printId)} disabled={!rows.length}>Print / PDF</Button>
         </div>
       </Card>
@@ -470,6 +510,7 @@ function StudentReportCard() {
   const [search, setSearch] = useState('');
   const [studentId, setStudentId] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-report-card';
 
   useEffect(() => { setStudentId(''); setSelectedStudent(null); }, [classId]);
@@ -510,6 +551,14 @@ function StudentReportCard() {
       { key: 'result', label: 'Result' },
     ];
     downloadCSV(tableToCSV(cols, rows), `report-card-${reportCard.student?.replace(/\s/g, '-')}-${sessionId}.csv`);
+  }
+
+  function handlePDF() {
+    downloadPDF(
+      () => downloadReportCard({ studentId, sessionId }),
+      `report-card-${reportCard?.student?.replace(/\s/g, '-') || studentId}.pdf`,
+      setPdfLoading,
+    );
   }
 
   return (
@@ -577,6 +626,7 @@ function StudentReportCard() {
               </div>
               <div className="flex gap-2 flex-wrap">
                 <Button size="sm" variant="outline" icon={FileSpreadsheet} onClick={handleExcelExport}>Export Excel</Button>
+                <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading}>Download PDF</Button>
                 <Button size="sm" variant="ghost" icon={Printer} onClick={() => printDiv(printId)}>Print / PDF</Button>
               </div>
             </div>
@@ -658,6 +708,7 @@ function StudentReportCard() {
 function ClassPerformanceReport() {
   const { sessions, sessionId, setSessionId, classesForSession, classId, setClassId } = useSessionClass();
   const [view, setView] = useState('class'); // class | section
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-class-perf';
 
   const { data: classData, isLoading: loadingClass } = useQuery({
@@ -696,6 +747,14 @@ function ClassPerformanceReport() {
     downloadCSV(tableToCSV(columns, rows), `${view}-performance-${sessionId}.csv`);
   }
 
+  function handlePDF() {
+    downloadPDF(
+      () => downloadClassPerformancePDF({ sessionId, classId: view === 'section' ? classId : undefined, view }),
+      `${view}-performance-${sessionId}.pdf`,
+      setPdfLoading,
+    );
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -711,6 +770,7 @@ function ClassPerformanceReport() {
         </div>
         <div className="flex gap-2 mt-4">
           <Button size="sm" variant="outline" icon={FileSpreadsheet} onClick={handleCSV} disabled={!rows.length}>Export Excel/CSV</Button>
+          <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading} disabled={!sessionId || (view === 'section' && !classId)}>Download PDF</Button>
           <Button size="sm" variant="ghost" icon={Printer} onClick={() => printDiv(printId)} disabled={!rows.length}>Print / PDF</Button>
         </div>
       </Card>
@@ -773,6 +833,7 @@ function MarksDefaultersReport() {
   const { sessions, sessionId, setSessionId, classesForSession, classId, setClassId } = useSessionClass();
   const [examTypeId, setExamTypeId] = useState('');
   const [subjectId, setSubjectId] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-marks-defaulters';
 
   const { data: examTypes } = useQuery({
@@ -797,16 +858,24 @@ function MarksDefaultersReport() {
 
   const rows = defaulters || [];
   const columns = [
-    { key: 'studentName',      label: 'Student' },
+    { key: 'studentName', label: 'Student' },
     { key: 'enrollmentNumber', label: 'Enr. No.' },
-    { key: 'subject',          label: 'Subject' },
-    { key: 'marksObtained',    label: 'Obtained' },
-    { key: 'passingMarks',     label: 'Passing Marks' },
-    { key: 'deficit',          label: 'Deficit', value: (r) => (r.passingMarks - r.marksObtained).toFixed(1) },
+    { key: 'subject', label: 'Subject' },
+    { key: 'marksObtained', label: 'Obtained' },
+    { key: 'passingMarks', label: 'Passing Marks' },
+    { key: 'deficit', label: 'Deficit', value: (r) => (r.passingMarks - r.marksObtained).toFixed(1) },
   ];
 
   function handleCSV() {
     downloadCSV(tableToCSV(columns, rows), `marks-defaulters-${examTypeId}.csv`);
+  }
+
+  function handlePDF() {
+    downloadPDF(
+      () => downloadMarksDefaultersPDF({ examTypeId, subjectId: subjectId || undefined }),
+      `marks-defaulters-${examTypeId}.pdf`,
+      setPdfLoading,
+    );
   }
 
   return (
@@ -824,6 +893,7 @@ function MarksDefaultersReport() {
         </div>
         <div className="flex gap-2 mt-4">
           <Button size="sm" variant="outline" icon={FileSpreadsheet} onClick={handleCSV} disabled={!rows.length}>Export Excel/CSV</Button>
+          <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading} disabled={!examTypeId}>Download PDF</Button>
           <Button size="sm" variant="ghost" icon={Printer} onClick={() => printDiv(printId)} disabled={!rows.length}>Print / PDF</Button>
         </div>
       </Card>
@@ -883,6 +953,7 @@ function AttendanceDefaultersReport() {
   const { sessions, sessionId, setSessionId, classesForSession, classId, setClassId, sectionId, setSectionId, selectedClass } = useSessionClass();
   const [threshold, setThreshold] = useState(75);
   const [appliedThreshold, setAppliedThreshold] = useState(75);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-att-defaulters';
 
   const { data: defaulters, isLoading, refetch, isFetching } = useQuery({
@@ -898,12 +969,13 @@ function AttendanceDefaultersReport() {
 
   const rows = defaulters || [];
   const columns = [
-    { key: 'studentName',          label: 'Student' },
-    { key: 'enrollmentNumber',     label: 'Enr. No.' },
-    { key: 'presentDays',          label: 'Present Days' },
-    { key: 'totalDays',            label: 'Total Days' },
+    { key: 'studentName', label: 'Student' },
+    { key: 'enrollmentNumber', label: 'Enr. No.' },
+    { key: 'presentDays', label: 'Present Days' },
+    { key: 'totalDays', label: 'Total Days' },
     { key: 'attendancePercentage', label: 'Attendance %', value: (r) => `${r.attendancePercentage}%` },
-    { key: 'shortage',             label: 'Shortage', value: (r) => {
+    {
+      key: 'shortage', label: 'Shortage', value: (r) => {
         const needed = Math.ceil((appliedThreshold / 100) * r.totalDays) - r.presentDays;
         return needed > 0 ? `${needed} days` : '—';
       }
@@ -912,6 +984,14 @@ function AttendanceDefaultersReport() {
 
   function handleCSV() {
     downloadCSV(tableToCSV(columns, rows), `attendance-defaulters-${appliedThreshold}pct.csv`);
+  }
+
+  function handlePDF() {
+    downloadPDF(
+      () => downloadAttendanceDefaultersPDF({ sessionId, classId: classId || undefined, sectionId: sectionId || undefined, threshold: appliedThreshold }),
+      `attendance-defaulters-${appliedThreshold}pct.pdf`,
+      setPdfLoading,
+    );
   }
 
   return (
@@ -935,6 +1015,7 @@ function AttendanceDefaultersReport() {
         </div>
         <div className="flex gap-2 mt-4">
           <Button size="sm" variant="outline" icon={FileSpreadsheet} onClick={handleCSV} disabled={!rows.length}>Export Excel/CSV</Button>
+          <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading} disabled={!sessionId}>Download PDF</Button>
           <Button size="sm" variant="ghost" icon={Printer} onClick={() => printDiv(printId)} disabled={!rows.length}>Print / PDF</Button>
         </div>
       </Card>
@@ -1002,6 +1083,7 @@ function StudentProgressReport() {
   const { sessions, sessionId, setSessionId, classesForSession, classId, setClassId, sectionId, setSectionId, selectedClass } = useSessionClass();
   const [search, setSearch] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
   const printId = 'print-progress';
 
   useEffect(() => { setStudentId(''); }, [classId]);
@@ -1034,6 +1116,14 @@ function StudentProgressReport() {
       { key: 'attendancePercent', label: 'Attendance %', value: (r) => `${r.attendancePercent}%` },
     ];
     downloadCSV(tableToCSV(cols, progress.attendanceTrend), `student-attendance-trend-${studentId}.csv`);
+  }
+
+  function handlePDF() {
+    downloadPDF(
+      () => downloadStudentProgressPDF({ studentId, sessionId }),
+      `student-progress-${studentId}.pdf`,
+      setPdfLoading,
+    );
   }
 
   return (
@@ -1091,6 +1181,11 @@ function StudentProgressReport() {
           <div className="flex justify-center py-16"><Spinner /></div>
         ) : !progress ? null : (
           <div className="space-y-4" id={printId}>
+            {/* Download full progress report as one branded PDF */}
+            <div className="flex justify-end">
+              <Button size="sm" icon={Download} onClick={handlePDF} loading={pdfLoading}>Download Full PDF</Button>
+            </div>
+
             {/* Exam Trend Table */}
             <Card>
               <div className="flex items-center justify-between mb-4">
@@ -1206,6 +1301,7 @@ function BulkDownload() {
   const [generating, setGenerating] = useState(false);
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
+  const [zipLoading, setZipLoading] = useState(false);
 
   const { data: studentsData, isLoading: loadingStudents } = useQuery({
     queryKey: ['rep-bulk-students', sessionId, classId, sectionId],
@@ -1214,6 +1310,25 @@ function BulkDownload() {
   });
 
   const students = studentsData?.students || [];
+
+  async function handleBulkPDF() {
+    if (!students.length) return;
+    setZipLoading(true);
+    try {
+      const res = await downloadBulkReportCardsZip({ sessionId, classId: classId || undefined, sectionId: sectionId || undefined });
+      const blob = new Blob([res.data], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-cards-${sessionId}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Could not generate the ZIP. Please try again.');
+    } finally {
+      setZipLoading(false);
+    }
+  }
 
   async function handleBulkExcel() {
     if (!students.length) return;
@@ -1293,6 +1408,9 @@ function BulkDownload() {
             <div className="flex gap-2">
               <Button icon={FileSpreadsheet} onClick={handleBulkExcel} loading={generating} disabled={!students.length}>
                 {generating ? `Generating ${done}/${total}...` : 'Download All as Excel/CSV'}
+              </Button>
+              <Button icon={Download} onClick={handleBulkPDF} loading={zipLoading} disabled={!students.length}>
+                {zipLoading ? 'Zipping PDFs...' : 'Download All as PDF (ZIP)'}
               </Button>
             </div>
           </div>

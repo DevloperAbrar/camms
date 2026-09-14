@@ -108,6 +108,13 @@ router.get('/analytics/attendance-defaulters', analyticsController.getAttendance
 router.get('/analytics/attendance-report', analyticsController.getAttendanceReportList);
 router.get('/analytics/report-card', analyticsController.getStudentReportCard);
 router.get('/analytics/report-card-pdf', reportCardController.downloadReportCardPDF);
+router.get('/analytics/bulk-report-cards-pdf', reportCardController.downloadBulkReportCardsZip);
+router.get('/analytics/attendance-report-pdf', analyticsController.downloadAttendanceReportPDF);
+router.get('/analytics/marks-report-pdf', analyticsController.downloadMarksReportPDF);
+router.get('/analytics/marks-defaulters-pdf', analyticsController.downloadMarksDefaultersPDF);
+router.get('/analytics/attendance-defaulters-pdf', analyticsController.downloadAttendanceDefaultersPDF);
+router.get('/analytics/class-performance-pdf', analyticsController.downloadClassPerformancePDF);
+router.get('/analytics/student-progress-pdf', analyticsController.downloadStudentProgressPDF);
 router.get('/analytics/overview', analyticsController.getOverviewStats);
 router.get('/analytics/class-comparison', analyticsController.getClassComparison);
 router.get('/analytics/section-comparison', analyticsController.getSectionComparison);
