@@ -100,3 +100,5 @@ export const deleteHoliday      = (id)     => api.delete(`/schooladmin/holidays/
 // Marks Lock/Unlock
 export const getMarksLockOverview = (params) => api.get('/schooladmin/marks-lock/overview', { params });
 export const setMarksLockStatus   = (examSubjectId, data) => api.patch(`/schooladmin/marks-lock/exam-subject/${examSubjectId}`, data);
+export const bulkLockByClass   = (data) => api.post('/schooladmin/marks-lock/bulk-by-class', data);
+export const bulkLockBySession = (data) => api.post('/schooladmin/marks-lock/bulk-by-session', data);

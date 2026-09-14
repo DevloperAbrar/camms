@@ -26,6 +26,7 @@ import AdminStudents from './pages/admin/Students';
 import AdminExamTypes from './pages/admin/ExamTypes';
 import AdminAnalytics from './pages/admin/Analytics';
 import AdminReports from './pages/admin/Reports';
+import AdminMarksLock from './pages/admin/MarksLock';
 
 // Faculty Pages
 import FacultyDashboard from './pages/faculty/Dashboard';
@@ -69,7 +70,9 @@ export default function App() {
           <Route path="faculty" element={<AdminFaculty />} />
           <Route path="students" element={<AdminStudents />} />
           <Route path="exams" element={<AdminExamTypes />} />
+          <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="reports" element={<AdminReports />} />
         </Route>
 

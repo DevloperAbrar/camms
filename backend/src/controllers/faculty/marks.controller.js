@@ -38,7 +38,9 @@ const getRosterForMarks = asyncHandler(async (req, res) => {
     },
     include: {
       student: { select: { id: true, name: true, enrollmentNumber: true } },
-      marks: { where: { examSubjectId } },
+      marks: {
+        where: { examSubjectId },
+        select: { id: true, marksObtained: true, isLocked: true, unlockReason: true },      },
     },
     orderBy: { rollNumber: 'asc' },
   });
@@ -74,19 +76,6 @@ const enterMarks = asyncHandler(async (req, res) => {
   });
   const existingByEnrollment = new Map(existing.map((m) => [m.enrollmentId, m]));
 
-  const stillLocked = data.records.filter((r) => {
-    const mark = existingByEnrollment.get(r.enrollmentId);
-    return mark && mark.isLocked;
-  });
-
-  if (stillLocked.length > 0) {
-    return ApiResponse.error(
-      res,
-      409,
-      'Marks for some students are locked. Ask your school admin to unlock this exam/subject before resubmitting.',
-      stillLocked.map((r) => r.enrollmentId)
-    );
-  }
 
   const results = await prisma.$transaction(
     data.records.map((r) => {
@@ -94,7 +83,7 @@ const enterMarks = asyncHandler(async (req, res) => {
       if (mark) {
         return prisma.marks.update({
           where: { id: mark.id },
-          data: { marksObtained: r.marksObtained, enteredBy: req.user.id, isLocked: true, submittedAt: new Date() },
+          data: { marksObtained: r.marksObtained, enteredBy: req.user.id, isLocked: false, submittedAt: new Date() },
         });
       }
       return prisma.marks.create({
@@ -103,7 +92,7 @@ const enterMarks = asyncHandler(async (req, res) => {
           examSubjectId: data.examSubjectId,
           marksObtained: r.marksObtained,
           enteredBy: req.user.id,
-          isLocked: true,
+          isLocked: false,   // ← changed from true
         },
       });
     })
@@ -138,8 +127,7 @@ const enterMarks = asyncHandler(async (req, res) => {
     metadata: { examSubjectId: data.examSubjectId, count: results.length },
   });
 
-  return ApiResponse.success(res, 201, 'Marks submitted and locked', { count: results.length });
-});
+  return ApiResponse.success(res, 201, 'Marks saved successfully', { count: results.length });});
 
 // Scoped analytics: this faculty's own sections/classes only
 const getMyClassAverage = asyncHandler(async (req, res) => {

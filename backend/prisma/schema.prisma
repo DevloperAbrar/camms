@@ -362,6 +362,7 @@ model Marks {
   marksObtained  Decimal  @db.Decimal(6, 2) @map("marks_obtained")
   enteredBy      String   @map("entered_by")
   isLocked       Boolean  @default(true) @map("is_locked")
+  unlockReason   String?  @map("unlock_reason")
   submittedAt    DateTime @default(now()) @map("submitted_at")
 
   enrollment   Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)

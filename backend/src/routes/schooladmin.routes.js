@@ -23,6 +23,7 @@ const reportCardController = require('../controllers/schooladmin/reportcard.cont
 
 const marksLockController = require('../controllers/schooladmin/markslock.controller');
 
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -102,8 +103,10 @@ router.post('/exam-types/:id/force-unlock', examTypeController.forceUnlockExamTy
 router.get('/marks/exam-subject/:examSubjectId', marksOversightController.getMarksForExamSubject);
 router.patch('/marks/:id/override', marksOversightController.overrideMark);
 // Marks Lock/Unlock (dynamic, bulk, per Class + Subject + Exam Type)
-router.get('/marks-lock/overview', marksLockController.getLockOverview);
-router.patch('/marks-lock/exam-subject/:examSubjectId', marksLockController.setLockStatus);
+router.get('/marks-lock/overview',                              marksLockController.getLockOverview);
+router.patch('/marks-lock/exam-subject/:examSubjectId',         marksLockController.setLockStatus);
+router.post('/marks-lock/bulk-by-class',                        marksLockController.bulkSetByClass);
+router.post('/marks-lock/bulk-by-session',                      marksLockController.bulkSetBySession);
 
 // Analytics
 router.get('/analytics/exam-stats/:examSubjectId', analyticsController.getExamStats);

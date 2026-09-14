@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, AlertTriangle, BookOpen, Lock } from 'lucide-react';
+import { CheckCircle, AlertTriangle, BookOpen, Lock, Unlock } from 'lucide-react';
 import {
   getMyAssignments,
   getMyExamSubjects,
@@ -14,13 +14,12 @@ import Spinner from '../../components/ui/Spinner';
 export default function FacultyMarks() {
   const qc = useQueryClient();
 
-  const [sessionId, setSessionId]       = useState('');
-  const [classId, setClassId]           = useState('');
-  const [subjectId, setSubjectId]       = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [classId, setClassId] = useState('');
+  const [subjectId, setSubjectId] = useState('');
   const [examSubjectId, setExamSubjectId] = useState('');
-  const [marksMap, setMarksMap]         = useState({});
-  const [submitted, setSubmitted]       = useState(false);
-  const [apiError, setApiError]         = useState('');
+  const [marksMap, setMarksMap] = useState({});
+  const [apiError, setApiError] = useState('');
 
   // ── Assignments ──────────────────────────────────────────────────────────
   const { data: assignments = [], isLoading: loadingAssignments } = useQuery({
@@ -37,10 +36,10 @@ export default function FacultyMarks() {
   ).values()];
 
   // Cascade resets
-  useEffect(() => { setClassId(''); setSubjectId(''); setExamSubjectId(''); setMarksMap({}); setSubmitted(false); setApiError(''); }, [sessionId]);
-  useEffect(() => { setSubjectId(''); setExamSubjectId(''); setMarksMap({}); setSubmitted(false); setApiError(''); }, [classId]);
-  useEffect(() => { setExamSubjectId(''); setMarksMap({}); setSubmitted(false); setApiError(''); }, [subjectId]);
-  useEffect(() => { setMarksMap({}); setSubmitted(false); setApiError(''); }, [examSubjectId]);
+  useEffect(() => { setClassId(''); setSubjectId(''); setExamSubjectId(''); setMarksMap({}); setApiError(''); }, [sessionId]);
+  useEffect(() => { setSubjectId(''); setExamSubjectId(''); setMarksMap({}); setApiError(''); }, [classId]);
+  useEffect(() => { setExamSubjectId(''); setMarksMap({}); setApiError(''); }, [subjectId]);
+  useEffect(() => { setMarksMap({}); setApiError(''); }, [examSubjectId]);
 
   // ── Exam Subjects ────────────────────────────────────────────────────────
   const canFetchExams = !!(sessionId && classId && subjectId);
@@ -58,30 +57,38 @@ export default function FacultyMarks() {
     enabled: !!examSubjectId,
   });
 
-  // React Query v5 removed onSuccess from useQuery — sync local state via effect instead
   useEffect(() => {
     if (!rosterData) return;
     const init = {};
     (rosterData.enrollments ?? []).forEach((e) => {
+      // Pre-fill with existing marks value (whether locked or unlocked)
       init[e.id] = e.marks?.[0] ? String(e.marks[0].marksObtained) : '';
     });
     setMarksMap(init);
-    setSubmitted(false);
     setApiError('');
   }, [rosterData]);
 
-  const maxMarks  = rosterData ? Number(rosterData.maxMarks)  : null;
+  const maxMarks = rosterData ? Number(rosterData.maxMarks) : null;
   const passMarks = rosterData ? Number(rosterData.passingMarks) : null;
   const enrollments = rosterData?.enrollments ?? [];
-  const alreadyAllSubmitted = enrollments.length > 0 && enrollments.every((e) => e.marks?.length > 0);
+
+  // A student's mark is "locked" if it exists AND isLocked === true
+  const isMarkLocked = (enrollment) => {
+    const mark = enrollment.marks?.[0];
+    return mark && mark.isLocked === true;
+  };
+
+  // All submitted AND all still locked → show locked state
+  const allSubmitted = enrollments.length > 0 && enrollments.every((e) => e.marks?.length > 0);
+  const anyUnlocked = enrollments.some((e) => e.marks?.length > 0 && e.marks[0].isLocked === false);
+  const allLocked = allSubmitted && !anyUnlocked;
 
   // ── Submit ───────────────────────────────────────────────────────────────
   const mutation = useMutation({
     mutationFn: enterMarks,
     onSuccess: () => {
-      setSubmitted(true);
       setApiError('');
-      qc.invalidateQueries(['marks-roster']);
+      qc.invalidateQueries({ queryKey: ['marks-roster'] });
     },
     onError: (err) => {
       setApiError(err?.response?.data?.message || 'Failed to submit marks. Please try again.');
@@ -90,16 +97,22 @@ export default function FacultyMarks() {
 
   function handleSubmit() {
     setApiError('');
+
     const records = enrollments
-      .filter((e) => !e.marks?.length && marksMap[e.id] !== '' && marksMap[e.id] !== undefined)
+      .filter((e) => {
+        const mark = e.marks?.[0];
+        // Include: no mark yet, OR mark exists but is unlocked
+        const canEdit = !mark || mark.isLocked === false;
+        const hasValue = marksMap[e.id] !== '' && marksMap[e.id] !== undefined;
+        return canEdit && hasValue;
+      })
       .map((e) => ({ enrollmentId: e.id, marksObtained: parseFloat(marksMap[e.id]) }));
 
     if (records.length === 0) {
-      setApiError('No new marks to submit.');
+      setApiError('No new or unlocked marks to submit.');
       return;
     }
 
-    // Client-side max marks validation
     const invalid = records.filter((r) => maxMarks !== null && r.marksObtained > maxMarks);
     if (invalid.length > 0) {
       setApiError(`Marks cannot exceed max marks (${maxMarks}). Please correct highlighted fields.`);
@@ -111,15 +124,15 @@ export default function FacultyMarks() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold text-[#1e293b]">Enter Marks</h1>
+        <h1 className="text-xl sm:text-2xl font-extrabold text-[#1e293b]">Enter Marks</h1>
         <p className="text-sm text-[#64748b] mt-1">Select subject and exam, then enter marks for each student.</p>
       </div>
 
       {/* Step 1 – Filters */}
       <Card>
-        <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wide mb-3">Step 1 — Select Subject</p>
+        <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wide mb-3">Step 1 -Select Subject</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-[#64748b]">Session</label>
@@ -170,7 +183,7 @@ export default function FacultyMarks() {
       {/* Step 2 – Select Exam */}
       {canFetchExams && (
         <Card>
-          <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wide mb-3">Step 2 — Select Exam</p>
+          <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wide mb-3">Step 2 -Select Exam</p>
           {loadingExams ? (
             <div className="flex gap-3">
               {[1, 2, 3].map((i) => <div key={i} className="h-14 w-32 bg-[#f1f5f9] rounded-xl animate-pulse" />)}
@@ -186,11 +199,10 @@ export default function FacultyMarks() {
                 <button
                   key={es.id}
                   onClick={() => setExamSubjectId(es.id)}
-                  className={`flex flex-col items-start px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                    examSubjectId === es.id
-                      ? 'border-[#f97316] bg-orange-50'
-                      : 'border-[#e2e8f0] hover:border-[#f97316] hover:bg-orange-50/50'
-                  }`}
+                  className={`flex flex-col items-start px-4 py-3 rounded-xl border-2 text-left transition-all ${examSubjectId === es.id
+                    ? 'border-[#f97316] bg-orange-50'
+                    : 'border-[#e2e8f0] hover:border-[#f97316] hover:bg-orange-50/50'
+                    }`}
                 >
                   <span className="text-sm font-bold text-[#1e293b]">{es.examType.name}</span>
                   <span className="text-xs text-[#64748b] mt-0.5">Max: {es.maxMarks} · Pass: {es.passingMarks}</span>
@@ -226,17 +238,35 @@ export default function FacultyMarks() {
                 <span className="text-xs text-[#94a3b8] ml-auto">{enrollments.length} students</span>
               </div>
 
-              {alreadyAllSubmitted && (
+              {/* Status banners */}
+              {allLocked && (
                 <div className="flex items-center gap-2 mx-5 mt-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                  <Lock size={15} />
-                  Marks for all students are already submitted. To make changes, raise a correction request.
+                  <Lock size={15} className="shrink-0" />
+                  Marks for all students are submitted and locked. Contact your school admin to unlock if a correction is needed.
+                </div>
+              )}
+
+              {anyUnlocked && (
+                <div className="flex items-start gap-2 mx-5 mt-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                  <Unlock size={15} className="shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Marks unlocked by admin — you can now edit and save.</p>
+                    {(() => {
+                      const reason = enrollments.find((e) => e.marks?.[0]?.isLocked === false)?.marks?.[0]?.unlockReason;
+                      return reason ? <p className="text-xs mt-1 text-green-600">Admin reason: "{reason}"</p> : null;
+                    })()}
+                  </div>
                 </div>
               )}
 
               {/* Students */}
               <div className="divide-y divide-[#f1f5f9]">
                 {enrollments.map((enrollment) => {
-                  const alreadyDone = enrollment.marks?.length > 0;
+                  const mark = enrollment.marks?.[0];
+                  const locked = isMarkLocked(enrollment);
+                  const unlocked = mark && mark.isLocked === false;
+                  const noMark = !mark;
+
                   const val = marksMap[enrollment.id] ?? '';
                   const numVal = val !== '' ? parseFloat(val) : null;
                   const overMax = maxMarks !== null && numVal !== null && numVal > maxMarks;
@@ -250,20 +280,24 @@ export default function FacultyMarks() {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
-                        {alreadyDone ? (
+                        {locked ? (
+                          // Submitted + still locked → read-only
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-[#1e293b]">{enrollment.marks[0].marksObtained}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                              Number(enrollment.marks[0].marksObtained) >= passMarks
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {Number(enrollment.marks[0].marksObtained) >= passMarks ? 'Pass' : 'Fail'}
+                            <span className="text-sm font-bold text-[#1e293b]">{mark.marksObtained}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${Number(mark.marksObtained) >= passMarks
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                              }`}>
+                              {Number(mark.marksObtained) >= passMarks ? 'Pass' : 'Fail'}
                             </span>
                             <Lock size={14} className="text-[#94a3b8]" />
                           </div>
                         ) : (
+                          // No mark yet, OR admin unlocked → editable
                           <div className="flex items-center gap-2">
+                            {unlocked && (
+                              <Unlock size={13} className="text-green-500 shrink-0" title="Unlocked by admin" />
+                            )}
                             <input
                               type="number"
                               min={0}
@@ -271,13 +305,14 @@ export default function FacultyMarks() {
                               step="0.5"
                               placeholder="—"
                               value={val}
-                              disabled={submitted}
+                              disabled={mutation.isPending}
                               onChange={(e) => setMarksMap((prev) => ({ ...prev, [enrollment.id]: e.target.value }))}
-                              className={`w-24 border rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:ring-2 transition-all disabled:bg-[#f1f5f9] disabled:cursor-not-allowed ${
-                                overMax
-                                  ? 'border-red-400 focus:ring-red-400 bg-red-50'
+                              className={`w-24 border rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:ring-2 transition-all disabled:bg-[#f1f5f9] disabled:cursor-not-allowed ${overMax
+                                ? 'border-red-400 focus:ring-red-400 bg-red-50'
+                                : unlocked
+                                  ? 'border-green-400 focus:ring-green-400 bg-green-50'
                                   : 'border-[#e2e8f0] focus:ring-[#f97316]'
-                              }`}
+                                }`}
                             />
                             {numVal !== null && !overMax && (
                               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isPassing ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -296,9 +331,9 @@ export default function FacultyMarks() {
               {/* Footer */}
               <div className="flex items-center justify-between px-5 py-4 border-t border-[#e2e8f0] bg-[#f8fafc] rounded-b-xl">
                 <div>
-                  {submitted && (
+                  {mutation.isSuccess && (
                     <p className="text-sm font-semibold text-green-600 flex items-center gap-1.5">
-                      <CheckCircle size={16} /> Marks submitted and locked successfully.
+                      <CheckCircle size={16} /> Marks saved successfully.
                     </p>
                   )}
                   {apiError && (
@@ -307,13 +342,10 @@ export default function FacultyMarks() {
                     </p>
                   )}
                 </div>
-                {!alreadyAllSubmitted && (
-                  <Button
-                    onClick={handleSubmit}
-                    loading={mutation.isPending}
-                    disabled={submitted}
-                  >
-                    {submitted ? 'Submitted' : 'Submit Marks'}
+                {/* Show submit button if any student has no mark or has unlocked mark */}
+                {enrollments.some((e) => !e.marks?.length || e.marks[0].isLocked === false) && (
+                  <Button onClick={handleSubmit} loading={mutation.isPending}>
+                    {anyUnlocked ? 'Save Changes' : 'Submit Marks'}
                   </Button>
                 )}
               </div>

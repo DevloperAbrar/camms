@@ -60,7 +60,13 @@ const reviewCorrectionSchema = z.object({
 
 const setMarksLockSchema = z.object({
   locked: z.boolean(),
-  reason: z.string().min(5).optional(),
+  // Empty string ('') is what the frontend sends when locking (reason field
+  // is only shown for unlock). Treat '' the same as "not provided" instead
+  // of letting it hit min(5) and fail validation.
+  reason: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.string().min(5).optional()
+  ),
 }).superRefine((data, ctx) => {
   if (data.locked === false && !data.reason) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'A reason is required to unlock marks' });

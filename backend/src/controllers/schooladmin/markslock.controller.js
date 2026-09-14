@@ -4,10 +4,6 @@ const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
 const { setMarksLockSchema } = require('../../validators/exam.validator');
 
-// Powers the admin "Marks Lock" screen: pick session/class/subject/exam type,
-// see exactly how many marks are locked vs unlocked per exam-subject, and
-// flip the lock in bulk. This is the single source of truth for whether
-// faculty can edit a submitted mark — see faculty/marks.controller.js#enterMarks.
 const getLockOverview = asyncHandler(async (req, res) => {
   const { sessionId, classId, subjectId, examTypeId } = req.query;
 
@@ -54,9 +50,6 @@ const getLockOverview = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Marks lock overview fetched', result);
 });
 
-// Bulk lock/unlock every submitted mark under one exam-subject in a single
-// transaction. Unlocking always requires a reason and is always audit-logged —
-// this directly controls whether faculty can resubmit via enterMarks.
 const setLockStatus = asyncHandler(async (req, res) => {
   const { locked, reason } = setMarksLockSchema.parse(req.body);
   const { examSubjectId } = req.params;
@@ -70,7 +63,11 @@ const setLockStatus = asyncHandler(async (req, res) => {
 
   const result = await prisma.marks.updateMany({
     where: { examSubjectId },
-    data: { isLocked: locked },
+    data: {
+      isLocked: locked,
+      // Store reason when unlocking so faculty can see why; clear it on re-lock
+      unlockReason: locked ? null : (reason || null),
+    },
   });
 
   await logAudit({
@@ -93,4 +90,86 @@ const setLockStatus = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { getLockOverview, setLockStatus };
+// Bulk lock/unlock by classId — locks/unlocks ALL exam subjects for every
+// exam type in that class. One click to lock an entire class after exams end.
+const bulkSetByClass = asyncHandler(async (req, res) => {
+  const { locked, reason, classId, sessionId } = req.body;
+
+  if (!classId) return ApiResponse.error(res, 400, 'classId is required');
+  if (!locked && !reason) return ApiResponse.error(res, 400, 'reason is required when unlocking');
+
+  const examSubjects = await prisma.examSubject.findMany({
+    where: {
+      examType: {
+        schoolId: req.schoolId,
+        classId,
+        ...(sessionId ? { sessionId } : {}),
+      },
+    },
+    select: { id: true },
+  });
+
+  if (examSubjects.length === 0) return ApiResponse.error(res, 404, 'No exam subjects found for this class');
+
+  const ids = examSubjects.map((es) => es.id);
+
+  const result = await prisma.marks.updateMany({
+    where: { examSubjectId: { in: ids } },
+    data: {
+      isLocked: locked,
+      unlockReason: locked ? null : (reason || null),
+    },
+  });
+
+  await logAudit({
+    req,
+    action: locked ? 'BULK_LOCK_CLASS' : 'BULK_UNLOCK_CLASS',
+    resourceType: 'class',
+    resourceId: classId,
+    metadata: { classId, sessionId, examSubjectCount: ids.length, recordsAffected: result.count, reason: reason || null },
+  });
+
+  return ApiResponse.success(res, 200, `Marks ${locked ? 'locked' : 'unlocked'} for ${result.count} record(s) across class`, {
+    locked, recordsAffected: result.count,
+  });
+});
+
+// Bulk lock/unlock ALL marks across ALL classes for a session — e.g. lock
+// everything at the end of an academic year in one click.
+const bulkSetBySession = asyncHandler(async (req, res) => {
+  const { locked, reason, sessionId } = req.body;
+
+  if (!sessionId) return ApiResponse.error(res, 400, 'sessionId is required');
+  if (!locked && !reason) return ApiResponse.error(res, 400, 'reason is required when unlocking');
+
+  const examSubjects = await prisma.examSubject.findMany({
+    where: { examType: { schoolId: req.schoolId, sessionId } },
+    select: { id: true },
+  });
+
+  if (examSubjects.length === 0) return ApiResponse.error(res, 404, 'No exam subjects found for this session');
+
+  const ids = examSubjects.map((es) => es.id);
+
+  const result = await prisma.marks.updateMany({
+    where: { examSubjectId: { in: ids } },
+    data: {
+      isLocked: locked,
+      unlockReason: locked ? null : (reason || null),
+    },
+  });
+
+  await logAudit({
+    req,
+    action: locked ? 'BULK_LOCK_SESSION' : 'BULK_UNLOCK_SESSION',
+    resourceType: 'session',
+    resourceId: sessionId,
+    metadata: { sessionId, examSubjectCount: ids.length, recordsAffected: result.count, reason: reason || null },
+  });
+
+  return ApiResponse.success(res, 200, `Marks ${locked ? 'locked' : 'unlocked'} for ${result.count} record(s) across session`, {
+    locked, recordsAffected: result.count,
+  });
+});
+
+module.exports = { getLockOverview, setLockStatus, bulkSetByClass, bulkSetBySession };
