@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import {
   LayoutDashboard, CalendarDays, BookOpen, Users, UserCheck,
-  ClipboardList, BarChart3, FileDown, GraduationCap, Lock,
+  ClipboardList, BarChart3, FileDown, GraduationCap, Lock, Wallet,
 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutSchool } from '../api/auth.api';
@@ -20,6 +20,7 @@ const navItems = [
   { to: '/admin/marks-lock',  icon: Lock,            label: 'Marks Lock'  },
   { to: '/admin/analytics',   icon: BarChart3,       label: 'Analytics'   },
   { to: '/admin/reports',     icon: FileDown,        label: 'Reports'     },
+  { to: '/admin/fees',        icon: Wallet,          label: 'Fee Management' },
 ];
 
 export default function SchoolAdminLayout() {

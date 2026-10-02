@@ -2,8 +2,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, GraduationCap } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Lock, Mail, GraduationCap, Users } from 'lucide-react';
 import { schoolPasswordLogin } from '../../api/auth.api';
 import useAuthStore from '../../store/auth.store';
 import Input from '../../components/ui/Input';
@@ -14,21 +14,29 @@ const schema = z.object({
   password: z.string().min(1, 'Password required'),
 });
 
+const URL_ERRORS = {
+  google_failed: 'Google sign-in failed. Make sure this email is registered with your school.',
+  no_children: 'No student is linked to this email as parent email. Please contact your school.',
+};
+
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(schema) });
+  const urlError = URL_ERRORS[params.get('error')];
 
   const mutation = useMutation({
     mutationFn: schoolPasswordLogin,
     onSuccess: (res) => {
-      setAuth(res.data.data);
-      navigate('/admin/dashboard');
+      const user = res.data.data;
+      setAuth(user);
+      navigate(user.role === 'fee_collector' ? '/fees/dashboard' : '/admin/dashboard');
     },
   });
 
-  const handleGoogle = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL}/auth/school/google`;
+  const handleGoogle = (asParent = false) => {
+    window.location.href = `${import.meta.env.VITE_API_URL}/auth/school/google${asParent ? '?as=parent' : ''}`;
   };
 
   return (
@@ -51,10 +59,14 @@ export default function AdminLogin() {
             <p className="text-sm text-[#64748b] mt-1">Sign in to manage your school</p>
           </div>
 
+          {urlError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600 mb-4">{urlError}</div>
+          )}
+
           {/* Google Button */}
           <button
-            onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 border-2 border-[#e2e8f0] rounded-lg px-4 py-2.5 text-sm font-semibold text-[#1e293b] hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all mb-5"
+            onClick={() => handleGoogle(false)}
+            className="w-full flex items-center justify-center gap-3 border-2 border-[#e2e8f0] rounded-lg px-4 py-2.5 text-sm font-semibold text-[#1e293b] hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all mb-3"
           >
             <svg width="18" height="18" viewBox="0 0 18 18">
               <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
@@ -63,6 +75,14 @@ export default function AdminLogin() {
               <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
             </svg>
             Continue with Google
+          </button>
+
+          <button
+            onClick={() => handleGoogle(true)}
+            className="w-full flex items-center justify-center gap-3 border-2 border-orange-200 bg-orange-50 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#f97316] hover:bg-orange-100 transition-all mb-5"
+          >
+            <Users size={18} />
+            Continue as Parent
           </button>
 
           <div className="flex items-center gap-3 mb-5">

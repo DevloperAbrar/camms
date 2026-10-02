@@ -9,6 +9,7 @@ const childrenController = require('../controllers/parent/children.controller');
 const attendanceController = require('../controllers/parent/attendance.controller');
 const marksController = require('../controllers/parent/marks.controller');
 const noticeController = require('../controllers/parent/notice.controller');
+const feesController = require('../controllers/parent/fees.controller');
 
 // Note: no enforceTenant/checkSubscriptionActive here — parent JWT has no schoolId.
 // Access is scoped per-child instead, via verifyChildAccess on each route below.
@@ -23,6 +24,11 @@ router.get('/marks/by-exam-type', verifyChildAccess, marksController.getMarksByE
 router.get('/marks/report-card', verifyChildAccess, marksController.getConsolidatedReportCard);
 
 router.get('/notices', verifyChildAccess, noticeController.getNoticesForChild);
+
+// Fees (read-only for parents)
+router.get('/fees', verifyChildAccess, feesController.getChildFees);
+router.get('/fees/statement-pdf', verifyChildAccess, feesController.statementPdf);
+router.get('/fees/receipts/:receiptId/pdf', verifyChildAccess, feesController.receiptPdf);
 
 router.get('/notifications', notificationController.listMyNotifications);
 router.patch('/notifications/:id/read', notificationController.markNotificationRead);

@@ -6,7 +6,7 @@ const { authenticate } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/role.middleware');
 const { enforceTenant } = require('../middleware/tenant.middleware');
 const { checkSubscriptionActive } = require('../middleware/subscription.middleware');
-
+const feeStaffController = require('../controllers/schooladmin/feestaff.controller');
 const sessionController = require('../controllers/schooladmin/session.controller');
 const classController = require('../controllers/schooladmin/class.controller');
 const sectionController = require('../controllers/schooladmin/section.controller');
@@ -139,6 +139,13 @@ router.delete('/holidays/:id', holidayController.deleteHoliday);
 // Correction Requests (attendance + marks correction approvals)
 router.get('/corrections', correctionController.getCorrectionRequests);
 router.patch('/corrections/:id/review', correctionController.reviewCorrectionRequest);
+
+// Fee collectors (receptionist logins)
+router.get('/fee-staff', feeStaffController.listFeeStaff);
+router.post('/fee-staff', feeStaffController.createFeeStaff);
+router.patch('/fee-staff/:id', feeStaffController.updateFeeStaff);
+router.post('/fee-staff/:id/password', feeStaffController.setFeeStaffPassword);
+router.delete('/fee-staff/:id', feeStaffController.deleteFeeStaff);
 
 router.get('/notifications', notificationController.listMyNotifications);
 router.patch('/notifications/:id/read', notificationController.markNotificationRead);

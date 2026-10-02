@@ -11,6 +11,7 @@ import SuperAdminLayout from './layouts/SuperAdminLayout';
 import SchoolAdminLayout from './layouts/SchoolAdminLayout';
 import FacultyLayout from './layouts/FacultyLayout';
 import ParentLayout from './layouts/ParentLayout';
+import FeeLayout from './layouts/FeeLayout';
 
 // Super Admin Pages
 import SADashboard from './pages/superadmin/Dashboard';
@@ -28,6 +29,17 @@ import AdminAnalytics from './pages/admin/Analytics';
 import AdminReports from './pages/admin/Reports';
 import AdminMarksLock from './pages/admin/MarksLock';
 
+// Fee Management Pages
+import FeeShell from './pages/fees/FeeShell';
+import FeeDashboard from './pages/fees/FeeDashboard';
+import FeeCollect from './pages/fees/FeeCollect';
+import FeeReceipts from './pages/fees/FeeReceipts';
+import FeeDues from './pages/fees/FeeDues';
+import FeeAnalytics from './pages/fees/FeeAnalytics';
+import FeeSetup from './pages/fees/FeeSetup';
+import FeeSettings from './pages/fees/FeeSettings';
+import FeeStaff from './pages/fees/FeeStaff';
+
 // Faculty Pages
 import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultyAttendance from './pages/faculty/Attendance';
@@ -39,6 +51,19 @@ import FacultyReports from './pages/faculty/Reports';
 import ParentDashboard from './pages/parent/Dashboard';
 import ParentAttendance from './pages/parent/Attendance';
 import ParentMarks from './pages/parent/Marks';
+import ParentFees from './pages/parent/Fees';
+
+// The same fee screens are used by the school admin (/admin/fees/*) and the fee collector (/fees/*)
+const feePages = (
+  <>
+    <Route path="dashboard" element={<FeeDashboard />} />
+    <Route path="collect" element={<FeeCollect />} />
+    <Route path="collect/:studentId" element={<FeeCollect />} />
+    <Route path="receipts" element={<FeeReceipts />} />
+    <Route path="dues" element={<FeeDues />} />
+    <Route path="analytics" element={<FeeAnalytics />} />
+  </>
+);
 
 export default function App() {
   return (
@@ -72,8 +97,21 @@ export default function App() {
           <Route path="exams" element={<AdminExamTypes />} />
           <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="analytics" element={<AdminAnalytics />} />
-          <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="reports" element={<AdminReports />} />
+
+          <Route path="fees" element={<FeeShell />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {feePages}
+            <Route path="setup" element={<FeeSetup />} />
+            <Route path="settings" element={<FeeSettings />} />
+            <Route path="staff" element={<FeeStaff />} />
+          </Route>
+        </Route>
+
+        {/* Fee Collector (receptionist) */}
+        <Route path="/fees" element={<ProtectedRoute allowedRoles={['fee_collector']}><FeeLayout /></ProtectedRoute>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          {feePages}
         </Route>
 
         {/* Faculty */}
@@ -92,6 +130,7 @@ export default function App() {
           <Route path="dashboard" element={<ParentDashboard />} />
           <Route path="attendance" element={<ParentAttendance />} />
           <Route path="marks" element={<ParentMarks />} />
+          <Route path="fees" element={<ParentFees />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

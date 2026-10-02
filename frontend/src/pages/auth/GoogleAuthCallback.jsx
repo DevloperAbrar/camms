@@ -8,6 +8,7 @@ const ROLE_REDIRECTS = {
   faculty: '/faculty/dashboard',
   parent: '/parent/dashboard',
   superadmin: '/superadmin/dashboard',
+  fee_collector: '/fees/dashboard',
 };
 
 // This page is the frontend landing after any Google OAuth callback.
