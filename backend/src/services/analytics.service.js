@@ -162,7 +162,7 @@ async function getOverview({ schoolId, sessionId }) {
   ]);
 
   const attendanceRecords = await prisma.attendance.findMany({
-    where: { subjectId: null, enrollment: { sessionId, student: { schoolId } } },
+    where: { enrollment: { sessionId, student: { schoolId } } },
     select: { status: true },
   });
   const totalAttendance = attendanceRecords.length;
@@ -219,7 +219,7 @@ async function getClassWisePerformance({ schoolId, sessionId }) {
       select: { marksObtained: true, examSubject: { select: { maxMarks: true, passingMarks: true } } },
     });
     const attendance = await prisma.attendance.findMany({
-      where: { subjectId: null, enrollment: { classId: cls.id, sessionId, student: { schoolId } } },
+      where: { enrollment: { classId: cls.id, sessionId, student: { schoolId } } },
       select: { status: true },
     });
 
@@ -249,7 +249,7 @@ async function getSectionWisePerformance({ schoolId, sessionId, classId }) {
       select: { marksObtained: true, examSubject: { select: { maxMarks: true, passingMarks: true } } },
     });
     const attendance = await prisma.attendance.findMany({
-      where: { subjectId: null, enrollment: { sectionId: sec.id, sessionId, student: { schoolId } } },
+      where: { enrollment: { sectionId: sec.id, sessionId, student: { schoolId } } },
       select: { status: true },
     });
 
@@ -292,7 +292,6 @@ async function getSubjectWisePerformance({ schoolId, examTypeId }) {
 async function getAttendanceTrend({ schoolId, sessionId, classId, sectionId }) {
   const records = await prisma.attendance.findMany({
     where: {
-      subjectId: null,
       enrollment: {
         sessionId,
         ...(classId ? { classId } : {}),
@@ -413,7 +412,7 @@ async function getStudentProgressTrend({ schoolId, studentId, sessionId }) {
     : [];
 
   const attendance = await prisma.attendance.findMany({
-    where: { enrollmentId: enrollment.id, subjectId: null },
+    where: { enrollmentId: enrollment.id },
     select: { date: true, status: true },
     orderBy: { date: 'asc' },
   });
@@ -478,17 +477,17 @@ async function getAttendanceReport({ schoolId, sessionId, classId, sectionId, se
   if (fromDate) dateFilter.gte = new Date(fromDate);
   if (toDate) {
     const to = new Date(toDate);
-    to.setHours(23, 59, 59, 999);
+    to.setUTCHours(23, 59, 59, 999);
     dateFilter.lte = to;
   }
 
   const results = [];
 
   for (const enr of enrollments) {
-    // subjectId provided → subject-wise attendance; null → daily (overall) attendance
+    // subjectId provided → that subject only; otherwise → ALL subjects (overall attendance)
     const where = {
       enrollmentId: enr.id,
-      subjectId: subjectId || null,
+      ...(subjectId ? { subjectId } : {}),
       ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
     };
 

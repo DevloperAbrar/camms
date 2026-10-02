@@ -27,6 +27,31 @@ function dayBounds(dateStr) {
   return { start: d, end };
 }
 
+// Attendance is saved SUBJECT-WISE by faculty (subjectId is set), so "overall"
+// attendance = every attendance record for the enrollment, whatever the subject.
+// Returns Map(enrollmentId -> { total, present, late, absent }) using ONE query.
+async function getAttendanceSummaryMap(enrollmentIds) {
+  const map = new Map();
+  if (!enrollmentIds.length) return map;
+
+  const rows = await prisma.attendance.groupBy({
+    by: ['enrollmentId', 'status'],
+    where: { enrollmentId: { in: enrollmentIds } },
+    _count: { _all: true },
+  });
+
+  for (const r of rows) {
+    if (!map.has(r.enrollmentId)) {
+      map.set(r.enrollmentId, { total: 0, present: 0, late: 0, absent: 0 });
+    }
+    const entry = map.get(r.enrollmentId);
+    const n = r._count._all;
+    entry.total += n;
+    if (entry[r.status] !== undefined) entry[r.status] += n;
+  }
+  return map;
+}
+
 const getOverview = asyncHandler(async (req, res) => {
   const { sessionId } = req.query;
   if (!sessionId) return ApiResponse.error(res, 422, 'sessionId is required');
@@ -49,28 +74,26 @@ const getOverview = asyncHandler(async (req, res) => {
   const enrollmentIds = enrollments.map((e) => e.id);
   const totalStudents = enrollmentIds.length;
 
-  const [totalAtt, presentAtt] = await Promise.all([
-    prisma.attendance.count({ where: { enrollmentId: { in: enrollmentIds }, subjectId: null } }),
-    prisma.attendance.count({
-      where: { enrollmentId: { in: enrollmentIds }, subjectId: null, status: { in: ['present', 'late'] } },
-    }),
-  ]);
+  const summary = await getAttendanceSummaryMap(enrollmentIds);
+
+  let totalAtt = 0;
+  let presentAtt = 0;
+  let lowAttendanceCount = 0;
+
+  for (const eid of enrollmentIds) {
+    const s = summary.get(eid);
+    if (!s || s.total === 0) continue; // nothing marked yet -> not at risk
+    totalAtt += s.total;
+    presentAtt += s.present + s.late;
+    const pct = ((s.present + s.late) / s.total) * 100;
+    if (pct < 75) lowAttendanceCount++;
+  }
 
   const avgAttendance = totalAtt > 0 ? Number(((presentAtt / totalAtt) * 100).toFixed(1)) : null;
 
   const marksEntered = await prisma.marks.count({
     where: { enteredBy: req.user.id, enrollmentId: { in: enrollmentIds } },
   });
-
-  let lowAttendanceCount = 0;
-  for (const eid of enrollmentIds) {
-    const tot = await prisma.attendance.count({ where: { enrollmentId: eid, subjectId: null } });
-    const pres = await prisma.attendance.count({
-      where: { enrollmentId: eid, subjectId: null, status: { in: ['present', 'late'] } },
-    });
-    const pct = tot > 0 ? (pres / tot) * 100 : 100;
-    if (pct < 75) lowAttendanceCount++;
-  }
 
   return ApiResponse.success(res, 200, 'Overview fetched', {
     totalStudents, avgAttendance, marksEntered, lowAttendanceCount,
@@ -101,13 +124,18 @@ const getDailyAttendance = asyncHandler(async (req, res) => {
 
   const ids = enrollments.map((e) => e.id);
   const records = await prisma.attendance.findMany({
-    where: { enrollmentId: { in: ids }, subjectId: null, date: { gte: start, lte: end } },
-    select: { status: true },
+    where: { enrollmentId: { in: ids }, date: { gte: start, lte: end } },
+    select: { status: true, enrollmentId: true },
   });
 
   const counts = { present: 0, absent: 0, late: 0, unmarked: 0 };
-  records.forEach((r) => { counts[r.status] = (counts[r.status] || 0) + 1; });
-  counts.unmarked = ids.length - records.length;
+  const markedEnrollments = new Set();
+  records.forEach((r) => {
+    counts[r.status] = (counts[r.status] || 0) + 1;
+    markedEnrollments.add(r.enrollmentId);
+  });
+  // A student can have several subject records in one day, so count distinct students
+  counts.unmarked = Math.max(0, ids.length - markedEnrollments.size);
 
   return ApiResponse.success(res, 200, 'Daily attendance fetched', {
     date, totalStudents: ids.length, ...counts,
@@ -139,7 +167,7 @@ const getWeeklyAttendance = asyncHandler(async (req, res) => {
   const ids = enrollments.map((e) => e.id);
 
   const records = await prisma.attendance.findMany({
-    where: { enrollmentId: { in: ids }, subjectId: null, date: { gte: start, lte: end } },
+    where: { enrollmentId: { in: ids }, date: { gte: start, lte: end } },
     select: { status: true, date: true },
   });
 
@@ -190,7 +218,7 @@ const getAttendanceTrend = asyncHandler(async (req, res) => {
   const ids = enrollments.map((e) => e.id);
 
   const records = await prisma.attendance.findMany({
-    where: { enrollmentId: { in: ids }, subjectId: null, date: { gte: start, lte: end } },
+    where: { enrollmentId: { in: ids }, date: { gte: start, lte: end } },
     select: { status: true, date: true },
     orderBy: { date: 'asc' },
   });
@@ -223,28 +251,25 @@ const getStudentStats = asyncHandler(async (req, res) => {
     orderBy: { rollNumber: 'asc' },
   });
 
-  const results = [];
-  for (const enr of enrollments) {
-    const total = await prisma.attendance.count({ where: { enrollmentId: enr.id, subjectId: null } });
-    const present = await prisma.attendance.count({
-      where: { enrollmentId: enr.id, subjectId: null, status: 'present' },
-    });
-    const late = await prisma.attendance.count({
-      where: { enrollmentId: enr.id, subjectId: null, status: 'late' },
-    });
-    const absent = total - present - late;
-    const pct = total > 0 ? Number((((present + late) / total) * 100).toFixed(1)) : null;
+  const summary = await getAttendanceSummaryMap(enrollments.map((e) => e.id));
 
-    results.push({
+  const results = enrollments.map((enr) => {
+    const s = summary.get(enr.id) || { total: 0, present: 0, late: 0, absent: 0 };
+    const pct = s.total > 0 ? Number((((s.present + s.late) / s.total) * 100).toFixed(1)) : null;
+
+    return {
       enrollmentId: enr.id,
       studentName: enr.student.name,
       enrollmentNumber: enr.student.enrollmentNumber,
       rollNumber: enr.rollNumber,
-      total, present, late, absent,
+      total: s.total,
+      present: s.present,
+      late: s.late,
+      absent: s.absent,
       attendancePct: pct,
       risk: pct !== null && pct < 75 ? 'high' : pct !== null && pct < 85 ? 'medium' : 'low',
-    });
-  }
+    };
+  });
 
   results.sort((a, b) => (a.attendancePct ?? 100) - (b.attendancePct ?? 100));
   return ApiResponse.success(res, 200, 'Student stats fetched', results);
@@ -322,11 +347,14 @@ const getSectionComparison = asyncHandler(async (req, res) => {
         select: { id: true },
       });
       const ids = enrollments.map((e) => e.id);
-      const total = await prisma.attendance.count({ where: { enrollmentId: { in: ids }, subjectId: null } });
+
+      // All subject-wise attendance records for this section
+      const total = await prisma.attendance.count({ where: { enrollmentId: { in: ids } } });
       const present = await prisma.attendance.count({
-        where: { enrollmentId: { in: ids }, subjectId: null, status: { in: ['present', 'late'] } },
+        where: { enrollmentId: { in: ids }, status: { in: ['present', 'late'] } },
       });
       const pct = total > 0 ? Number(((present / total) * 100).toFixed(1)) : null;
+
       return {
         label: `${classNameById.get(v.classId)} – ${sectionNameById.get(v.sectionId)}`,
         classId: v.classId,
