@@ -178,7 +178,7 @@ model AcademicSession {
   faculty      FacultyAssignment[]
   holidays     Holiday[]
   notices      Notice[]
-  feeStructureItems Feeäructure
+  feeStructureItems FeeStructureItem[]
   calendarEvents    CalendarEvent[]
   calendarSettings  CalendarSettings?
 

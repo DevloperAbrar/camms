@@ -1,6 +1,8 @@
 const { z } = require('zod');
 
-const uuid = z.string().uuid();
+// z.guid() accepts any 8-4-4-4-12 hex id. z.string().uuid() is strict in Zod v4 and
+// rejects the ids created by the calendar migration (they come from md5()::uuid).
+const uuid = z.guid();
 
 const ymdSchema = z
   .string()

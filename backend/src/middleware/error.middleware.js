@@ -15,7 +15,13 @@ function errorMiddleware(err, req, res, next) {
   }
 
   if (err.name === 'ZodError') {
-    return ApiResponse.error(res, 422, 'Validation failed', err.errors);
+    // Zod v4 exposes .issues (.errors no longer exists)
+    const issues = err.issues || err.errors || [];
+    const first = issues[0];
+    const message = first
+      ? `${first.path && first.path.length ? first.path.join('.') + ': ' : ''}${first.message}`
+      : 'Validation failed';
+    return ApiResponse.error(res, 422, message, issues);
   }
 
   if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {

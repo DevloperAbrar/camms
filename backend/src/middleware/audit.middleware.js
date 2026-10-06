@@ -5,9 +5,11 @@ const { prisma } = require('../config/db');
 // logs the exact resourceType/resourceId/metadata that matters for that action.
 async function logAudit({ req, action, resourceType, resourceId = null, metadata = {} }) {
   try {
+    const body = req.body || {}; // Express 5: req.body is undefined when no body was sent
+
     await prisma.auditLog.create({
       data: {
-        schoolId: req.user.role === 'superadmin' ? (req.body.schoolId || null) : req.user.schoolId,
+        schoolId: req.user.role === 'superadmin' ? (body.schoolId || null) : req.user.schoolId,
         actorId: req.user.id,
         actorRole: req.user.role,
         action,

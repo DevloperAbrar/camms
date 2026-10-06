@@ -89,8 +89,8 @@ export default function App() {
           <Route path="plans" element={<SAPlans />} />
         </Route>
 
-        {/* School Admin */}
-        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><SchoolAdminLayout /></ProtectedRoute>}>
+                {/* School Admin */}
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><SchoolAdminLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="sessions" element={<AdminSessions />} />
@@ -102,10 +102,8 @@ export default function App() {
           <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="reports" element={<AdminReports />} />
-          <Route path="calendar" element={<FacultyCalendar />} />
 
           <Route path="fees" element={<FeeShell />}>
-          <Route path="calendar" element={<ParentCalendar />} />
             <Route index element={<Navigate to="dashboard" replace />} />
             {feePages}
             <Route path="setup" element={<FeeSetup />} />
@@ -128,6 +126,7 @@ export default function App() {
           <Route path="marks" element={<FacultyMarks />} />
           <Route path="analytics" element={<FacultyAnalytics />} />
           <Route path="reports" element={<FacultyReports />} />
+          <Route path="calendar" element={<FacultyCalendar />} />
         </Route>
 
         {/* Parent */}
@@ -137,6 +136,7 @@ export default function App() {
           <Route path="attendance" element={<ParentAttendance />} />
           <Route path="marks" element={<ParentMarks />} />
           <Route path="fees" element={<ParentFees />} />
+          <Route path="calendar" element={<ParentCalendar />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
