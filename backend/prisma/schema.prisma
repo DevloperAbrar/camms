@@ -65,6 +65,17 @@ enum NotificationRecipientType {
   admin
 }
 
+enum CalendarEventKind {
+  holiday
+  exam
+  event
+  working_day
+}
+
+enum CalendarAudience {
+  all
+  staff
+}
 // ============= SUPER ADMIN / SCHOOLS =============
 
 model School {
@@ -93,6 +104,9 @@ model School {
   feeHeads           FeeHead[]
   feeStructureItems  FeeStructureItem[]
   feeReceipts        FeeReceipt[]
+  calendarCategories CalendarCategory[]
+  calendarEvents     CalendarEvent[]
+  calendarSettings   CalendarSettings[]
 
   @@map("schools")
 }
@@ -164,7 +178,9 @@ model AcademicSession {
   faculty      FacultyAssignment[]
   holidays     Holiday[]
   notices      Notice[]
-  feeStructureItems FeeStructureItem[]
+  feeStructureItems Feeäructure
+  calendarEvents    CalendarEvent[]
+  calendarSettings  CalendarSettings?
 
   @@index([schoolId])
   @@map("academic_sessions")
@@ -707,4 +723,66 @@ model FeeReceiptCounter {
 
   @@unique([schoolId, sessionId])
   @@map("fee_receipt_counters")
+}
+
+// ============= ACADEMIC CALENDAR =============
+
+model CalendarCategory {
+  id        String            @id @default(uuid())
+  schoolId  String            @map("school_id")
+  name      String
+  kind      CalendarEventKind
+  color     String            @default("#f97316")
+  sortOrder Int               @default(0) @map("sort_order")
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  school School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  events CalendarEvent[]
+
+  @@unique([schoolId, name])
+  @@map("calendar_categories")
+}
+
+model CalendarEvent {
+  id          String            @id @default(uuid())
+  schoolId    String            @map("school_id")
+  sessionId   String            @map("session_id")
+  categoryId  String            @map("category_id")
+  kind        CalendarEventKind
+  title       String
+  description String?
+  startDate   DateTime          @db.Date @map("start_date")
+  endDate     DateTime          @db.Date @map("end_date")
+  startTime   String?           @map("start_time")
+  endTime     String?           @map("end_time")
+  location    String?
+  audience    CalendarAudience  @default(all)
+  classIds    String[]          @default([]) @map("class_ids")
+  needsReview Boolean           @default(false) @map("needs_review")
+  createdById String?           @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  school   School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  session  AcademicSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  category CalendarCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, sessionId, startDate])
+  @@map("calendar_events")
+}
+
+model CalendarSettings {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  sessionId     String   @unique @map("session_id")
+  weeklyOffDays Int[]    @default([0]) @map("weekly_off_days")
+  offSaturdays  Int[]    @default([]) @map("off_saturdays")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  school  School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  session AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@map("calendar_settings")
 }

@@ -28,6 +28,7 @@ import AdminExamTypes from './pages/admin/ExamTypes';
 import AdminAnalytics from './pages/admin/Analytics';
 import AdminReports from './pages/admin/Reports';
 import AdminMarksLock from './pages/admin/MarksLock';
+import AdminCalendar from './pages/admin/Calendar';
 
 // Fee Management Pages
 import FeeShell from './pages/fees/FeeShell';
@@ -46,12 +47,14 @@ import FacultyAttendance from './pages/faculty/Attendance';
 import FacultyMarks from './pages/faculty/Marks';
 import FacultyAnalytics from './pages/faculty/Analytics';
 import FacultyReports from './pages/faculty/Reports';
+import FacultyCalendar from './pages/faculty/Calendar';
 
 // Parent Pages
 import ParentDashboard from './pages/parent/Dashboard';
 import ParentAttendance from './pages/parent/Attendance';
 import ParentMarks from './pages/parent/Marks';
 import ParentFees from './pages/parent/Fees';
+import ParentCalendar from './pages/parent/Calendar';
 
 // The same fee screens are used by the school admin (/admin/fees/*) and the fee collector (/fees/*)
 const feePages = (
@@ -91,6 +94,7 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="sessions" element={<AdminSessions />} />
+          <Route path="calendar" element={<AdminCalendar />} />
           <Route path="classes" element={<AdminClasses />} />
           <Route path="faculty" element={<AdminFaculty />} />
           <Route path="students" element={<AdminStudents />} />
@@ -98,8 +102,10 @@ export default function App() {
           <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="reports" element={<AdminReports />} />
+          <Route path="calendar" element={<FacultyCalendar />} />
 
           <Route path="fees" element={<FeeShell />}>
+          <Route path="calendar" element={<ParentCalendar />} />
             <Route index element={<Navigate to="dashboard" replace />} />
             {feePages}
             <Route path="setup" element={<FeeSetup />} />

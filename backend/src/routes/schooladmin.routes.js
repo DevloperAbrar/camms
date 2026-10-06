@@ -18,6 +18,7 @@ const examTypeController = require('../controllers/schooladmin/examtype.controll
 const marksOversightController = require('../controllers/schooladmin/marksoversight.controller');
 const analyticsController = require('../controllers/schooladmin/analytics.controller');
 const holidayController = require('../controllers/schooladmin/holiday.controller');
+const calendarController = require('../controllers/schooladmin/calendar.controller');
 const correctionController = require('../controllers/schooladmin/correction.controller');
 const reportCardController = require('../controllers/schooladmin/reportcard.controller');
 
@@ -135,6 +136,18 @@ router.get('/analytics/student-progress', analyticsController.getStudentProgress
 router.post('/holidays', holidayController.createHoliday);
 router.get('/holidays', holidayController.getHolidays);
 router.delete('/holidays/:id', holidayController.deleteHoliday);
+// Academic Calendar
+router.get('/calendar', calendarController.getCalendar);
+router.get('/calendar/export', calendarController.exportCalendar);
+router.post('/calendar/events', calendarController.createEvent);
+router.post('/calendar/events/mark-reviewed', calendarController.markAllReviewed);
+router.patch('/calendar/events/:id', calendarController.updateEvent);
+router.delete('/calendar/events/:id', calendarController.deleteEvent);
+router.put('/calendar/settings', calendarController.saveSettings);
+router.post('/calendar/categories', calendarController.createCategory);
+router.patch('/calendar/categories/:id', calendarController.updateCategory);
+router.delete('/calendar/categories/:id', calendarController.deleteCategory);
+router.post('/calendar/copy', calendarController.copyCalendar);
 
 // Correction Requests (attendance + marks correction approvals)
 router.get('/corrections', correctionController.getCorrectionRequests);

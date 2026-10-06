@@ -11,3 +11,8 @@ export const getNotices              = (params) => api.get('/parent/notices', { 
 export const getParentFees           = (params) => api.get('/parent/fees', { params });
 export const downloadParentReceipt   = (receiptId, params) => api.get(`/parent/fees/receipts/${receiptId}/pdf`, { params, responseType: 'blob' });
 export const downloadParentStatement = (params) => api.get('/parent/fees/statement-pdf', { params, responseType: 'blob' });
+
+
+// Academic Calendar
+export const getParentCalendar    = (params) => api.get('/parent/calendar', { params });
+export const exportParentCalendar = (params) => api.get('/parent/calendar/export', { params, responseType: 'blob' });

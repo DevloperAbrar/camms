@@ -102,3 +102,16 @@ export const getMarksLockOverview = (params) => api.get('/schooladmin/marks-lock
 export const setMarksLockStatus   = (examSubjectId, data) => api.patch(`/schooladmin/marks-lock/exam-subject/${examSubjectId}`, data);
 export const bulkLockByClass   = (data) => api.post('/schooladmin/marks-lock/bulk-by-class', data);
 export const bulkLockBySession = (data) => api.post('/schooladmin/marks-lock/bulk-by-session', data);
+
+// Academic Calendar
+export const getCalendar            = (params)     => api.get('/schooladmin/calendar', { params });
+export const exportCalendar         = (params)     => api.get('/schooladmin/calendar/export', { params, responseType: 'blob' });
+export const createCalendarEvent    = (data)       => api.post('/schooladmin/calendar/events', data);
+export const updateCalendarEvent    = (id, data)   => api.patch(`/schooladmin/calendar/events/${id}`, data);
+export const deleteCalendarEvent    = (id)         => api.delete(`/schooladmin/calendar/events/${id}`);
+export const markCalendarReviewed   = (data)       => api.post('/schooladmin/calendar/events/mark-reviewed', data);
+export const saveCalendarSettings   = (data)       => api.put('/schooladmin/calendar/settings', data);
+export const createCalendarCategory = (data)       => api.post('/schooladmin/calendar/categories', data);
+export const updateCalendarCategory = (id, data)   => api.patch(`/schooladmin/calendar/categories/${id}`, data);
+export const deleteCalendarCategory = (id)         => api.delete(`/schooladmin/calendar/categories/${id}`);
+export const copyCalendar           = (data)       => api.post('/schooladmin/calendar/copy', data);

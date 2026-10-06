@@ -14,6 +14,7 @@ const analyticsController = require('../controllers/faculty/analytics.controller
 const reportsController = require('../controllers/faculty/reports.controller');
 
 const notificationController = require('../controllers/shared/notification.controller');
+const calendarController = require('../controllers/shared/calendar.controller');
 
 router.use(authenticate, authorize('faculty'), enforceTenant, checkSubscriptionActive);
 
@@ -54,6 +55,10 @@ router.get('/reports/report-card-pdf', reportsController.downloadMyStudentReport
 // Corrections
 router.post('/corrections/request', correctionController.requestCorrection);
 router.get('/corrections/my-requests', correctionController.getMyCorrectionRequests);
+
+// Academic Calendar (read-only)
+router.get('/calendar', calendarController.getFacultyCalendar);
+router.get('/calendar/export', calendarController.exportFacultyCalendar);
 
 // Notifications (in-app)
 router.get('/notifications', notificationController.listMyNotifications);

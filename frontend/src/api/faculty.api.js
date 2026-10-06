@@ -28,3 +28,8 @@ export const getMyReportsMarks      = (params) => api.get('/faculty/reports/mark
 export const getMyReportsStudents   = (params) => api.get('/faculty/reports/students', { params });
 export const getMyReportCard        = (params) => api.get('/faculty/reports/report-card', { params });
 export const downloadMyReportCard   = (params) => api.get('/faculty/reports/report-card-pdf', { params, responseType: 'blob' });
+
+
+// Academic Calendar
+export const getFacultyCalendar    = (params) => api.get('/faculty/calendar', { params });
+export const exportFacultyCalendar = (params) => api.get('/faculty/calendar/export', { params, responseType: 'blob' });
