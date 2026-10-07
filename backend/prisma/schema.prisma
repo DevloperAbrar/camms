@@ -431,6 +431,7 @@ model Attendance {
 
   @@index([enrollmentId, date])
   @@index([subjectId, date])
+  @@index([date])
   @@map("attendance")
 }
 
@@ -501,6 +502,7 @@ model AuditLog {
   actor   User     @relation(fields: [actorId], references: [id])
 
   @@index([schoolId])
+  @@index([schoolId, action, createdAt])
   @@map("audit_logs")
 }
 

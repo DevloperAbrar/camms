@@ -29,6 +29,7 @@ import AdminAnalytics from './pages/admin/Analytics';
 import AdminReports from './pages/admin/Reports';
 import AdminMarksLock from './pages/admin/MarksLock';
 import AdminCalendar from './pages/admin/Calendar';
+import AdminTeacherReports from './pages/admin/TeacherReports';
 
 // Fee Management Pages
 import FeeShell from './pages/fees/FeeShell';
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="marks-lock" element={<AdminMarksLock />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="reports" element={<AdminReports />} />
+          <Route path="teacher-reports" element={<AdminTeacherReports />} />
 
           <Route path="fees" element={<FeeShell />}>
             <Route index element={<Navigate to="dashboard" replace />} />

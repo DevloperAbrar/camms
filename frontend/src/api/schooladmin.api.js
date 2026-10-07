@@ -139,3 +139,14 @@ export const autoScheduleSyllabus       = (data)   => api.post('/schooladmin/syl
 export const getSyllabusExamScope       = (params) => api.get('/schooladmin/syllabus/exam-scope', { params });
 export const saveSyllabusExamScope      = (data)   => api.put('/schooladmin/syllabus/exam-scope', data);
 export const getSyllabusExamReadiness   = (params) => api.get('/schooladmin/syllabus/exam-readiness', { params });
+
+// Teacher Reports
+export const getTeacherReportFilters   = (params)       => api.get('/schooladmin/teacher-reports/filters', { params });
+export const getTeacherReportOverview  = (params)       => api.get('/schooladmin/teacher-reports/overview', { params });
+export const getTeacherReportGrid      = (params)       => api.get('/schooladmin/teacher-reports/day-grid', { params });
+export const getTeacherReportPending   = (params)       => api.get('/schooladmin/teacher-reports/pending', { params });
+export const getTeacherReportMarks     = (params)       => api.get('/schooladmin/teacher-reports/marks', { params });
+export const getTeacherReportDetail    = (id, params)   => api.get(`/schooladmin/teacher-reports/teachers/${id}`, { params });
+export const getTeacherReportDayDetail = (params)       => api.get('/schooladmin/teacher-reports/day-detail', { params });
+export const exportTeacherReport       = (params)       => api.get('/schooladmin/teacher-reports/export', { params, responseType: 'blob' });
+export const sendTeacherReminders      = (data)         => api.post('/schooladmin/teacher-reports/remind', data);

@@ -22,6 +22,7 @@ const calendarController = require('../controllers/schooladmin/calendar.controll
 const correctionController = require('../controllers/schooladmin/correction.controller');
 const syllabusController = require('../controllers/schooladmin/syllabus.controller');
 const reportCardController = require('../controllers/schooladmin/reportcard.controller');
+const teacherReportController = require('../controllers/schooladmin/teacherreport.controller');
 
 const marksLockController = require('../controllers/schooladmin/markslock.controller');
 
@@ -177,6 +178,17 @@ router.post('/syllabus/schedule', syllabusController.autoSchedule);
 router.get('/syllabus/exam-scope', syllabusController.getExamScope);
 router.put('/syllabus/exam-scope', syllabusController.saveExamScope);
 router.get('/syllabus/exam-readiness', syllabusController.getExamReadiness);
+
+// Teacher Reports (attendance / marks / syllabus accountability, day-wise grid, reminders, CSV)
+router.get('/teacher-reports/filters',         teacherReportController.getFilters);
+router.get('/teacher-reports/overview',        teacherReportController.getOverview);
+router.get('/teacher-reports/day-grid',        teacherReportController.getDayGrid);
+router.get('/teacher-reports/pending',         teacherReportController.getPending);
+router.get('/teacher-reports/marks',           teacherReportController.getMarksTracker);
+router.get('/teacher-reports/day-detail',      teacherReportController.getDayDetail);
+router.get('/teacher-reports/export',          teacherReportController.exportCsv);
+router.get('/teacher-reports/teachers/:id',    teacherReportController.getTeacherDetail);
+router.post('/teacher-reports/remind',         teacherReportController.sendReminders);
 
 // Fee collectors (receptionist logins)
 router.get('/fee-staff', feeStaffController.listFeeStaff);
