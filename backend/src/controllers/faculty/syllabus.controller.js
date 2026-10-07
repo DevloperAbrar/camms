@@ -9,20 +9,15 @@ const { saveProgressSchema } = require('../../validators/syllabus.validator');
 
 // Combos this teacher can SEE. editable = they teach that subject in that section.
 // Class teachers can additionally view every subject of their section (read-only), same rule as facultyScope.service.js
+// Combos this teacher can SEE and edit: only the subjects they are actually assigned to teach.
 async function loadCombos(req, sessionId) {
-  const [assignments, ctSections] = await Promise.all([
-    prisma.facultyAssignment.findMany({
-      where: { facultyId: req.user.id, isActive: true, sessionId },
-      select: {
-        classId: true, sectionId: true, subjectId: true,
-        class: { select: { name: true } }, section: { select: { name: true } }, subject: { select: { name: true } },
-      },
-    }),
-    prisma.section.findMany({
-      where: { classTeacherId: req.user.id, schoolId: req.schoolId, class: { sessionId } },
-      select: { id: true, name: true, classId: true, class: { select: { name: true, subjects: { select: { id: true, name: true } } } } },
-    }),
-  ]);
+  const assignments = await prisma.facultyAssignment.findMany({
+    where: { facultyId: req.user.id, isActive: true, sessionId },
+    select: {
+      classId: true, sectionId: true, subjectId: true,
+      class: { select: { name: true } }, section: { select: { name: true } }, subject: { select: { name: true } },
+    },
+  });
 
   const map = new Map();
   for (const a of assignments) {
@@ -30,17 +25,6 @@ async function loadCombos(req, sessionId) {
       classId: a.classId, className: a.class.name, sectionId: a.sectionId, sectionName: a.section.name,
       subjectId: a.subjectId, subjectName: a.subject.name, editable: true,
     });
-  }
-  for (const s of ctSections) {
-    for (const sub of s.class.subjects) {
-      const key = `${s.id}|${sub.id}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          classId: s.classId, className: s.class.name, sectionId: s.id, sectionName: s.name,
-          subjectId: sub.id, subjectName: sub.name, editable: false,
-        });
-      }
-    }
   }
   return [...map.values()];
 }
