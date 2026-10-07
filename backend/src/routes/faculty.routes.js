@@ -12,6 +12,7 @@ const marksController = require('../controllers/faculty/marks.controller');
 const correctionController = require('../controllers/faculty/correction.controller');
 const analyticsController = require('../controllers/faculty/analytics.controller');
 const reportsController = require('../controllers/faculty/reports.controller');
+const syllabusController = require('../controllers/faculty/syllabus.controller');
 
 const notificationController = require('../controllers/shared/notification.controller');
 const calendarController = require('../controllers/shared/calendar.controller');
@@ -55,6 +56,12 @@ router.get('/reports/report-card-pdf', reportsController.downloadMyStudentReport
 // Corrections
 router.post('/corrections/request', correctionController.requestCorrection);
 router.get('/corrections/my-requests', correctionController.getMyCorrectionRequests);
+
+// Syllabus Tracker (update own sections, view as class teacher)
+router.get('/syllabus/my-classes', syllabusController.getMyClasses);
+router.get('/syllabus/tracker', syllabusController.getTracker);
+router.put('/syllabus/progress', syllabusController.saveProgress);
+router.get('/syllabus/exam-readiness', syllabusController.getReadiness);
 
 // Academic Calendar (read-only)
 router.get('/calendar', calendarController.getFacultyCalendar);

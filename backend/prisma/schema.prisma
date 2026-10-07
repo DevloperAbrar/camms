@@ -76,6 +76,13 @@ enum CalendarAudience {
   all
   staff
 }
+
+enum SyllabusStatus {
+  not_started
+  in_progress
+  completed
+}
+
 // ============= SUPER ADMIN / SCHOOLS =============
 
 model School {
@@ -107,6 +114,8 @@ model School {
   calendarCategories CalendarCategory[]
   calendarEvents     CalendarEvent[]
   calendarSettings   CalendarSettings[]
+  syllabusChapters   SyllabusChapter[]
+  syllabusTemplates  SyllabusTemplate[]
 
   @@map("schools")
 }
@@ -181,6 +190,7 @@ model AcademicSession {
   feeStructureItems FeeStructureItem[]
   calendarEvents    CalendarEvent[]
   calendarSettings  CalendarSettings?
+  syllabusChapters  SyllabusChapter[]
 
   @@index([schoolId])
   @@map("academic_sessions")
@@ -201,6 +211,7 @@ model Class {
   examTypes  ExamType[]
   faculty    FacultyAssignment[]
   feeStructureItems FeeStructureItem[]
+  syllabusChapters  SyllabusChapter[]
 
   @@index([schoolId])
   @@index([sessionId])
@@ -219,6 +230,7 @@ model Section {
   classTeacher  User?         @relation("ClassTeacher", fields: [classTeacherId], references: [id])
   enrollments   Enrollment[]
   faculty       FacultyAssignment[]
+  syllabusProgress SyllabusProgress[]
 
   @@index([schoolId])
   @@index([classId])
@@ -239,6 +251,7 @@ model Subject {
   faculty      FacultyAssignment[]
   examSubjects ExamSubject[]
   attendance   Attendance[]
+  syllabusChapters SyllabusChapter[]
 
   @@index([schoolId])
   @@index([classId])
@@ -360,6 +373,7 @@ model ExamType {
   session      AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   class        Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
   examSubjects ExamSubject[]
+  syllabusScopes SyllabusExamScope[]
 
   @@index([schoolId])
   @@index([sessionId, classId])
@@ -785,4 +799,91 @@ model CalendarSettings {
 
   @@index([schoolId])
   @@map("calendar_settings")
+}
+
+// ============= SYLLABUS TRACKER =============
+
+model SyllabusChapter {
+  id             String    @id @default(uuid())
+  schoolId       String    @map("school_id")
+  sessionId      String    @map("session_id")
+  classId        String    @map("class_id")
+  subjectId      String    @map("subject_id")
+  unitName       String?   @map("unit_name")
+  title          String
+  sortOrder      Int       @default(0) @map("sort_order")
+  plannedPeriods Int       @default(1) @map("planned_periods")
+  plannedStart   DateTime? @db.Date @map("planned_start")
+  plannedEnd     DateTime? @db.Date @map("planned_end")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  school     School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  session    AcademicSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  class      Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject    Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  progress   SyllabusProgress[]
+  examScopes SyllabusExamScope[]
+
+  @@index([schoolId, sessionId, classId, subjectId])
+  @@index([subjectId])
+  @@map("syllabus_chapters")
+}
+
+// One row per chapter per SECTION, so 8-A and 8-B move at their own speed
+model SyllabusProgress {
+  id          String         @id @default(uuid())
+  schoolId    String         @map("school_id")
+  chapterId   String         @map("chapter_id")
+  sectionId   String         @map("section_id")
+  status      SyllabusStatus @default(not_started)
+  percentDone Int            @default(0) @map("percent_done")
+  startedOn   DateTime?      @db.Date @map("started_on")
+  completedOn DateTime?      @db.Date @map("completed_on")
+  isRevised   Boolean        @default(false) @map("is_revised")
+  remarks     String?
+  updatedById String?        @map("updated_by_id")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  chapter SyllabusChapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  section Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, sectionId])
+  @@index([schoolId, sectionId])
+  @@map("syllabus_progress")
+}
+
+// Which chapters an exam covers (e.g. Half Yearly = chapters 1 to 6)
+model SyllabusExamScope {
+  id         String @id @default(uuid())
+  schoolId   String @map("school_id")
+  examTypeId String @map("exam_type_id")
+  chapterId  String @map("chapter_id")
+
+  examType ExamType        @relation(fields: [examTypeId], references: [id], onDelete: Cascade)
+  chapter  SyllabusChapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([examTypeId, chapterId])
+  @@index([schoolId])
+  @@index([chapterId])
+  @@map("syllabus_exam_scopes")
+}
+
+// schoolId = null means built-in library template, otherwise the school's own saved template
+model SyllabusTemplate {
+  id          String   @id @default(uuid())
+  schoolId    String?  @map("school_id")
+  board       String
+  className   String   @map("class_name")
+  subjectName String   @map("subject_name")
+  chapters    Json     @default("[]")
+  isBuiltIn   Boolean  @default(false) @map("is_built_in")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([className, subjectName])
+  @@map("syllabus_templates")
 }

@@ -16,3 +16,6 @@ export const downloadParentStatement = (params) => api.get('/parent/fees/stateme
 // Academic Calendar
 export const getParentCalendar    = (params) => api.get('/parent/calendar', { params });
 export const exportParentCalendar = (params) => api.get('/parent/calendar/export', { params, responseType: 'blob' });
+
+// Syllabus coverage
+export const getChildSyllabus = (params) => api.get('/parent/syllabus', { params });

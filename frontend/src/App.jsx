@@ -56,6 +56,9 @@ import ParentMarks from './pages/parent/Marks';
 import ParentFees from './pages/parent/Fees';
 import ParentCalendar from './pages/parent/Calendar';
 
+import AdminSyllabus from './pages/admin/Syllabus';
+import FacultySyllabus from './pages/faculty/Syllabus';
+import ParentSyllabus from './pages/parent/Syllabus';
 // The same fee screens are used by the school admin (/admin/fees/*) and the fee collector (/fees/*)
 const feePages = (
   <>
@@ -95,6 +98,7 @@ export default function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="sessions" element={<AdminSessions />} />
           <Route path="calendar" element={<AdminCalendar />} />
+          <Route path="syllabus" element={<AdminSyllabus />} />
           <Route path="classes" element={<AdminClasses />} />
           <Route path="faculty" element={<AdminFaculty />} />
           <Route path="students" element={<AdminStudents />} />
@@ -127,6 +131,7 @@ export default function App() {
           <Route path="analytics" element={<FacultyAnalytics />} />
           <Route path="reports" element={<FacultyReports />} />
           <Route path="calendar" element={<FacultyCalendar />} />
+          <Route path="syllabus" element={<FacultySyllabus />} />
         </Route>
 
         {/* Parent */}
@@ -137,6 +142,7 @@ export default function App() {
           <Route path="marks" element={<ParentMarks />} />
           <Route path="fees" element={<ParentFees />} />
           <Route path="calendar" element={<ParentCalendar />} />
+          <Route path="syllabus" element={<ParentSyllabus />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

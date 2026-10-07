@@ -20,6 +20,7 @@ const analyticsController = require('../controllers/schooladmin/analytics.contro
 const holidayController = require('../controllers/schooladmin/holiday.controller');
 const calendarController = require('../controllers/schooladmin/calendar.controller');
 const correctionController = require('../controllers/schooladmin/correction.controller');
+const syllabusController = require('../controllers/schooladmin/syllabus.controller');
 const reportCardController = require('../controllers/schooladmin/reportcard.controller');
 
 const marksLockController = require('../controllers/schooladmin/markslock.controller');
@@ -152,6 +153,30 @@ router.post('/calendar/copy', calendarController.copyCalendar);
 // Correction Requests (attendance + marks correction approvals)
 router.get('/corrections', correctionController.getCorrectionRequests);
 router.patch('/corrections/:id/review', correctionController.reviewCorrectionRequest);
+
+// Syllabus Tracker (chapters, templates, CSV import, copy, auto-schedule, exam scope, monitoring)
+router.get('/syllabus/structure', syllabusController.getStructure);
+router.get('/syllabus/overview', syllabusController.getOverview);
+router.get('/syllabus/export', syllabusController.exportCsv);
+router.get('/syllabus/tracker', syllabusController.getSectionTracker);
+router.put('/syllabus/progress', syllabusController.saveProgress);
+router.post('/syllabus/remind', syllabusController.sendReminder);
+router.get('/syllabus/chapters', syllabusController.listChapters);
+router.post('/syllabus/chapters', syllabusController.createChapter);
+router.post('/syllabus/chapters/bulk', syllabusController.bulkCreateChapters);
+router.patch('/syllabus/chapters/:id', syllabusController.updateChapter);
+router.delete('/syllabus/chapters/:id', syllabusController.deleteChapter);
+router.get('/syllabus/templates', syllabusController.listTemplates);
+router.post('/syllabus/templates', syllabusController.saveTemplate);
+router.post('/syllabus/templates/apply', syllabusController.applyTemplate);
+router.delete('/syllabus/templates/:id', syllabusController.deleteTemplate);
+router.get('/syllabus/csv-template', syllabusController.getCsvTemplate);
+router.post('/syllabus/import-csv', upload.single('file'), syllabusController.importCsv);
+router.post('/syllabus/copy', syllabusController.copySyllabus);
+router.post('/syllabus/schedule', syllabusController.autoSchedule);
+router.get('/syllabus/exam-scope', syllabusController.getExamScope);
+router.put('/syllabus/exam-scope', syllabusController.saveExamScope);
+router.get('/syllabus/exam-readiness', syllabusController.getExamReadiness);
 
 // Fee collectors (receptionist logins)
 router.get('/fee-staff', feeStaffController.listFeeStaff);

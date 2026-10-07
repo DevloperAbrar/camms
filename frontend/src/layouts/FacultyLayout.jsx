@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { LayoutDashboard, ClipboardCheck, FileEdit, BookOpen, BarChart2, FileText, CalendarRange } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, FileEdit, BookOpen, BarChart2, FileText, CalendarRange, ListChecks } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutSchool } from '../api/auth.api';
 import useAuthStore from '../store/auth.store';
@@ -11,8 +11,8 @@ const navItems = [
   { to: '/faculty/dashboard',  icon: LayoutDashboard, label: 'Dashboard'  },
   { to: '/faculty/attendance', icon: ClipboardCheck,  label: 'Attendance' },
   { to: '/faculty/marks',      icon: FileEdit,        label: 'Marks'      },
+  { to: '/faculty/syllabus',   icon: ListChecks,      label: 'Syllabus'   },
   { to: '/faculty/analytics',  icon: BarChart2,       label: 'Analytics'  },
-  { to: '/faculty/reports',    icon: FileText,        label: 'Reports'    },
   { to: '/faculty/reports',    icon: FileText,        label: 'Reports'    },
   { to: '/faculty/calendar',   icon: CalendarRange,   label: 'Calendar'   },
 ];

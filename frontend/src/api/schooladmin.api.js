@@ -115,3 +115,27 @@ export const createCalendarCategory = (data)       => api.post('/schooladmin/cal
 export const updateCalendarCategory = (id, data)   => api.patch(`/schooladmin/calendar/categories/${id}`, data);
 export const deleteCalendarCategory = (id)         => api.delete(`/schooladmin/calendar/categories/${id}`);
 export const copyCalendar           = (data)       => api.post('/schooladmin/calendar/copy', data);
+
+// Syllabus Tracker
+export const getSyllabusStructure       = (params) => api.get('/schooladmin/syllabus/structure', { params });
+export const getSyllabusOverview        = (params) => api.get('/schooladmin/syllabus/overview', { params });
+export const exportSyllabusCsv          = (params) => api.get('/schooladmin/syllabus/export', { params, responseType: 'blob' });
+export const getSyllabusSectionTracker  = (params) => api.get('/schooladmin/syllabus/tracker', { params });
+export const saveSyllabusProgressAdmin  = (data)   => api.put('/schooladmin/syllabus/progress', data);
+export const sendSyllabusReminder       = (data)   => api.post('/schooladmin/syllabus/remind', data);
+export const getSyllabusChapters        = (params) => api.get('/schooladmin/syllabus/chapters', { params });
+export const createSyllabusChapter      = (data)   => api.post('/schooladmin/syllabus/chapters', data);
+export const bulkCreateSyllabusChapters = (data)   => api.post('/schooladmin/syllabus/chapters/bulk', data);
+export const updateSyllabusChapter      = (id, data) => api.patch(`/schooladmin/syllabus/chapters/${id}`, data);
+export const deleteSyllabusChapter      = (id, params) => api.delete(`/schooladmin/syllabus/chapters/${id}`, { params });
+export const getSyllabusTemplates       = (params) => api.get('/schooladmin/syllabus/templates', { params });
+export const saveSyllabusTemplate       = (data)   => api.post('/schooladmin/syllabus/templates', data);
+export const applySyllabusTemplate      = (data)   => api.post('/schooladmin/syllabus/templates/apply', data);
+export const deleteSyllabusTemplate     = (id)     => api.delete(`/schooladmin/syllabus/templates/${id}`);
+export const getSyllabusCsvTemplate     = (params) => api.get('/schooladmin/syllabus/csv-template', { params, responseType: 'blob' });
+export const importSyllabusCsv          = (formData) => api.post('/schooladmin/syllabus/import-csv', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const copySyllabus               = (data)   => api.post('/schooladmin/syllabus/copy', data);
+export const autoScheduleSyllabus       = (data)   => api.post('/schooladmin/syllabus/schedule', data);
+export const getSyllabusExamScope       = (params) => api.get('/schooladmin/syllabus/exam-scope', { params });
+export const saveSyllabusExamScope      = (data)   => api.put('/schooladmin/syllabus/exam-scope', data);
+export const getSyllabusExamReadiness   = (params) => api.get('/schooladmin/syllabus/exam-readiness', { params });

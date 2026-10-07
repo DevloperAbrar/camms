@@ -33,3 +33,9 @@ export const downloadMyReportCard   = (params) => api.get('/faculty/reports/repo
 // Academic Calendar
 export const getFacultyCalendar    = (params) => api.get('/faculty/calendar', { params });
 export const exportFacultyCalendar = (params) => api.get('/faculty/calendar/export', { params, responseType: 'blob' });
+
+// Syllabus Tracker
+export const getSyllabusMyClasses = (params) => api.get('/faculty/syllabus/my-classes', { params });
+export const getSyllabusTracker   = (params) => api.get('/faculty/syllabus/tracker', { params });
+export const saveSyllabusProgress = (data)   => api.put('/faculty/syllabus/progress', data);
+export const getSyllabusReadiness = (params) => api.get('/faculty/syllabus/exam-readiness', { params });
