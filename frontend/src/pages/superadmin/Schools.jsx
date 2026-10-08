@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Ban, CheckCircle, Pencil, RotateCcw, KeyRound, Copy, Check } from 'lucide-react';
+import { Plus, Search, Ban, CheckCircle, Pencil, RotateCcw, KeyRound, Copy, Check, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import {
   getSchools, createSchool, updateSchool, suspendSchool, reactivateSchool,
   resetSchoolAdminPassword, renewSubscription, getPlans,
@@ -17,6 +17,9 @@ import Modal from '../../components/ui/Modal';
 
 const statusVariant = { active: 'success', trial: 'info', expired: 'danger', suspended: 'warning' };
 
+const PASSWORD_MESSAGE = 'Password must be 8 to 72 characters';
+const isValidPassword = (v) => v.length >= 8 && v.length <= 72 && v.trim().length > 0;
+
 const createSchema = z.object({
   name:         z.string().min(2, 'Name required'),
   code:         z.string().min(2, 'Code required').toUpperCase(),
@@ -27,6 +30,7 @@ const createSchema = z.object({
   startDate:    z.string().min(1, 'Start date required'),
   endDate:      z.string().min(1, 'End date required'),
   timezone:     z.string().default('Asia/Kolkata'),
+  adminPassword: z.string().optional().refine((v) => !v || isValidPassword(v), PASSWORD_MESSAGE),
 });
 
 const editSchema = z.object({
@@ -42,6 +46,52 @@ const renewSchema = z.object({
   invoiceRef:   z.string().optional(),
   paymentMode:  z.string().optional(),
 });
+
+// Same character set the server uses for auto-generated passwords (no look-alike characters)
+const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+function generatePassword(length = 12) {
+  const values = new Uint32Array(length);
+  window.crypto.getRandomValues(values);
+  return Array.from(values, (v) => PASSWORD_ALPHABET[v % PASSWORD_ALPHABET.length]).join('');
+}
+
+function PasswordInput({ label, value, onChange, error, hint, autoFocus = false }) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-sm font-medium text-[#374151]">{label}</label>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input
+            type={show ? 'text' : 'password'}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            autoComplete="new-password"
+            autoFocus={autoFocus}
+            maxLength={72}
+            placeholder="Leave blank to auto-generate"
+            className={`w-full rounded-lg border bg-white pl-4 pr-10 py-2.5 text-sm text-[#1e293b] placeholder-[#94a3b8] transition-all
+              focus:outline-none focus:ring-2 focus:ring-[#f97316] focus:border-transparent
+              ${error ? 'border-red-400 focus:ring-red-400' : 'border-[#e2e8f0] hover:border-[#cbd5e1]'}`}
+          />
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            aria-label={show ? 'Hide password' : 'Show password'}
+            className="absolute inset-y-0 right-3 flex items-center text-[#94a3b8] hover:text-[#1e293b]"
+          >
+            {show ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        <Button variant="ghost" icon={RefreshCw} onClick={() => { onChange(generatePassword()); setShow(true); }}>
+          Generate
+        </Button>
+      </div>
+      {error ? <p className="text-xs text-red-500">{error}</p> : hint && <p className="text-xs text-[#94a3b8]">{hint}</p>}
+    </div>
+  );
+}
 
 function CredentialsModal({ data, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -88,6 +138,8 @@ export default function SASchools() {
   const [suspendModal, setSuspendModal] = useState(null);
   const [suspendReason, setSuspendReason] = useState('');
   const [credentials, setCredentials]   = useState(null);
+  const [resetSchool, setResetSchool]   = useState(null);
+  const [resetPwd, setResetPwd]         = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['sa-schools', search, statusFilter],
@@ -125,8 +177,12 @@ export default function SASchools() {
   });
 
   const resetPasswordMutation = useMutation({
-    mutationFn: resetSchoolAdminPassword,
-    onSuccess: (res) => setCredentials(res.data.data),
+    mutationFn: ({ id, password }) => resetSchoolAdminPassword(id, password ? { password } : {}),
+    onSuccess: (res) => {
+      setResetSchool(null);
+      setResetPwd('');
+      setCredentials(res.data.data);
+    },
   });
 
   const suspendMutation = useMutation({
@@ -156,6 +212,25 @@ export default function SASchools() {
     renewForm.reset({ amount: undefined, extendMonths: 12, invoiceRef: '', paymentMode: '' });
   };
 
+  const openReset = (school) => {
+    resetPasswordMutation.reset();
+    setResetPwd('');
+    setResetSchool(school);
+  };
+
+  const closeReset = () => {
+    setResetSchool(null);
+    setResetPwd('');
+    resetPasswordMutation.reset();
+  };
+
+  const resetPwdError = resetPwd && !isValidPassword(resetPwd) ? PASSWORD_MESSAGE : '';
+
+  const submitCreate = (d) => {
+    const { adminPassword, ...rest } = d;
+    createMutation.mutate(adminPassword ? { ...rest, adminPassword } : rest);
+  };
+
   const columns = [
     { key: 'name', label: 'School Name', render: (r) => (
       <div>
@@ -180,8 +255,7 @@ export default function SASchools() {
       <div className="flex items-center gap-1 flex-wrap">
         <Button size="sm" variant="ghost" icon={Pencil} onClick={() => openEdit(r)}>Edit</Button>
         <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => openRenew(r)} disabled={!r.subscriptions?.[0]}>Renew</Button>
-        <Button size="sm" variant="ghost" icon={KeyRound} loading={resetPasswordMutation.isPending && resetPasswordMutation.variables === r.id}
-          onClick={() => resetPasswordMutation.mutate(r.id)}>Reset Password</Button>
+        <Button size="sm" variant="ghost" icon={KeyRound} onClick={() => openReset(r)}>Reset Password</Button>
         {r.status === 'suspended' ? (
           <Button size="sm" variant="ghost" icon={CheckCircle} loading={reactivateMutation.isPending}
             onClick={() => reactivateMutation.mutate(r.id)}>Reactivate</Button>
@@ -233,7 +307,7 @@ export default function SASchools() {
 
       {/* Create School Modal */}
       <Modal open={showCreate} onClose={() => { setShowCreate(false); createForm.reset(); }} title="Onboard New School" size="lg">
-        <form onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+        <form onSubmit={createForm.handleSubmit(submitCreate)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="School Name"    name="name"         register={createForm.register} error={createForm.formState.errors.name}         required placeholder="e.g. Delhi Public School" />
             <Input label="School Code"    name="code"         register={createForm.register} error={createForm.formState.errors.code}         required placeholder="e.g. DPS001" />
@@ -252,6 +326,21 @@ export default function SASchools() {
             </div>
             <Input label="Subscription Start" name="startDate" type="date" register={createForm.register} error={createForm.formState.errors.startDate} required />
             <Input label="Subscription End"   name="endDate"   type="date" register={createForm.register} error={createForm.formState.errors.endDate}   required />
+            <div className="sm:col-span-2">
+              <Controller
+                control={createForm.control}
+                name="adminPassword"
+                render={({ field }) => (
+                  <PasswordInput
+                    label="School Admin Password"
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    error={createForm.formState.errors.adminPassword?.message}
+                    hint="Set the password you want for the school admin (8-72 characters), or leave blank to auto-generate one."
+                  />
+                )}
+              />
+            </div>
           </div>
 
           {createMutation.isError && (
@@ -310,6 +399,41 @@ export default function SASchools() {
             <Button type="submit" loading={renewMutation.isPending}>Confirm Renewal</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Reset Admin Password Modal */}
+      <Modal open={!!resetSchool} onClose={closeReset} title={`Reset Password — ${resetSchool?.name || ''}`} size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-[#64748b]">
+            Set a new password for this school's admin. Their current password will stop working immediately.
+          </p>
+          <PasswordInput
+            label="New Password"
+            value={resetPwd}
+            onChange={setResetPwd}
+            error={resetPwdError}
+            hint="Type the password you want (8-72 characters), or leave blank to auto-generate one."
+            autoFocus
+          />
+
+          {resetPasswordMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+              {resetPasswordMutation.error?.response?.data?.message || 'Failed to reset password.'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={closeReset}>Cancel</Button>
+            <Button
+              icon={KeyRound}
+              loading={resetPasswordMutation.isPending}
+              disabled={!!resetPwdError}
+              onClick={() => resetPasswordMutation.mutate({ id: resetSchool.id, password: resetPwd })}
+            >
+              Reset Password
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Suspend Modal */}

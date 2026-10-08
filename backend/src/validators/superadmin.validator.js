@@ -1,5 +1,17 @@
 const { z } = require('zod');
 
+// Optional password typed by the super admin. Blank / missing = auto-generate on the server.
+const optionalAdminPassword = z.preprocess(
+  (v) => (v === '' || v === null ? undefined : v),
+  z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(72, 'Password must be at most 72 characters')
+    .refine((v) => Buffer.byteLength(v, 'utf8') <= 72, 'Password is too long (max 72 bytes)')
+    .refine((v) => v.trim().length > 0, 'Password cannot be only spaces')
+    .optional()
+);
+
 const createSchoolSchema = z.object({
   name: z.string().min(2),
   code: z.string().min(2).max(20).regex(/^[a-zA-Z0-9-]+$/, 'Code can only contain letters, numbers, and hyphens'),
@@ -10,6 +22,11 @@ const createSchoolSchema = z.object({
   planId: z.string().uuid(),
   startDate: z.string(),
   endDate: z.string(),
+  adminPassword: optionalAdminPassword,
+});
+
+const resetAdminPasswordSchema = z.object({
+  password: optionalAdminPassword,
 });
 
 const updateSchoolSchema = z.object({
@@ -51,6 +68,7 @@ const changePlanSchema = z.object({
 
 module.exports = {
   createSchoolSchema,
+  resetAdminPasswordSchema,
   updateSchoolSchema,
   suspendSchoolSchema,
   createPlanSchema,

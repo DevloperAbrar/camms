@@ -7,6 +7,7 @@ const { generateTempPassword } = require('../../utils/generatePassword');
 const { listSchools, getSchoolWithSubscription } = require('../../services/school.service');
 const {
   createSchoolSchema,
+  resetAdminPasswordSchema,
   updateSchoolSchema,
   suspendSchoolSchema,
   changePlanSchema,
@@ -25,7 +26,9 @@ const createSchool = asyncHandler(async (req, res) => {
     return ApiResponse.error(res, 409, 'A user with this contact email already exists');
   }
 
-  const adminPassword = generateTempPassword();
+  // Use the password typed by the super admin; fall back to a generated one when left blank
+  const passwordSource = data.adminPassword ? 'manual' : 'generated';
+  const adminPassword = data.adminPassword || generateTempPassword();
   const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   const result = await prisma.$transaction(async (tx) => {
@@ -83,7 +86,7 @@ const createSchool = asyncHandler(async (req, res) => {
     action: 'CREATE_SCHOOL',
     resourceType: 'school',
     resourceId: result.school.id,
-    metadata: { name: data.name, code: data.code },
+    metadata: { name: data.name, code: data.code, passwordSource },
   });
 
   return ApiResponse.success(res, 201, 'School onboarded successfully', {
@@ -181,15 +184,19 @@ const changeSchoolPlan = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Plan changed successfully', updated);
 });
 
-// Generates a fresh temporary password for the school's admin account
+// Sets the school admin's password: the one typed by the super admin, or a generated one when left blank
 const resetAdminPassword = asyncHandler(async (req, res) => {
+  // Express 5: req.body is undefined when the request has no body
+  const { password: chosenPassword } = resetAdminPasswordSchema.parse(req.body || {});
+
   const admin = await prisma.user.findFirst({
     where: { schoolId: req.params.id, role: 'admin' },
   });
 
   if (!admin) return ApiResponse.error(res, 404, 'No admin account found for this school');
 
-  const newPassword = generateTempPassword();
+  const passwordSource = chosenPassword ? 'manual' : 'generated';
+  const newPassword = chosenPassword || generateTempPassword();
   const passwordHash = await bcrypt.hash(newPassword, 12);
 
   await prisma.user.update({ where: { id: admin.id }, data: { passwordHash } });
@@ -199,7 +206,7 @@ const resetAdminPassword = asyncHandler(async (req, res) => {
     action: 'RESET_SCHOOL_ADMIN_PASSWORD',
     resourceType: 'user',
     resourceId: admin.id,
-    metadata: { schoolId: req.params.id },
+    metadata: { schoolId: req.params.id, passwordSource },
   });
 
   return ApiResponse.success(res, 200, 'Admin password reset', {
