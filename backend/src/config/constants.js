@@ -4,6 +4,7 @@ module.exports = {
     ADMIN: 'admin',
     FACULTY: 'faculty',
     FEE_COLLECTOR: 'fee_collector',
+    RECEPTIONIST: 'receptionist',
   },
   SCHOOL_STATUS: {
     TRIAL: 'trial',

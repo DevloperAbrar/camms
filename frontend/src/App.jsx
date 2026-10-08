@@ -12,6 +12,7 @@ import SchoolAdminLayout from './layouts/SchoolAdminLayout';
 import FacultyLayout from './layouts/FacultyLayout';
 import ParentLayout from './layouts/ParentLayout';
 import FeeLayout from './layouts/FeeLayout';
+import ReceptionLayout from './layouts/ReceptionLayout';
 
 // Super Admin Pages
 import SADashboard from './pages/superadmin/Dashboard';
@@ -42,6 +43,15 @@ import FeeSetup from './pages/fees/FeeSetup';
 import FeeSettings from './pages/fees/FeeSettings';
 import FeeStaff from './pages/fees/FeeStaff';
 
+// Reception (Admission Enquiries + Visitor Log)
+import ReceptionShell from './pages/reception/ReceptionShell';
+import ReceptionDashboard from './pages/reception/ReceptionDashboard';
+import Enquiries from './pages/reception/Enquiries';
+import FollowUps from './pages/reception/FollowUps';
+import Visitors from './pages/reception/Visitors';
+import ReceptionFields from './pages/reception/ReceptionFields';
+import ReceptionStaff from './pages/reception/ReceptionStaff';
+
 // Faculty Pages
 import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultyAttendance from './pages/faculty/Attendance';
@@ -60,6 +70,7 @@ import ParentCalendar from './pages/parent/Calendar';
 import AdminSyllabus from './pages/admin/Syllabus';
 import FacultySyllabus from './pages/faculty/Syllabus';
 import ParentSyllabus from './pages/parent/Syllabus';
+
 // The same fee screens are used by the school admin (/admin/fees/*) and the fee collector (/fees/*)
 const feePages = (
   <>
@@ -69,6 +80,16 @@ const feePages = (
     <Route path="receipts" element={<FeeReceipts />} />
     <Route path="dues" element={<FeeDues />} />
     <Route path="analytics" element={<FeeAnalytics />} />
+  </>
+);
+
+// The same reception screens are used by the school admin (/admin/reception/*) and the receptionist (/reception/*)
+const receptionPages = (
+  <>
+    <Route path="dashboard" element={<ReceptionDashboard />} />
+    <Route path="enquiries" element={<Enquiries />} />
+    <Route path="follow-ups" element={<FollowUps />} />
+    <Route path="visitors" element={<Visitors />} />
   </>
 );
 
@@ -93,8 +114,8 @@ export default function App() {
           <Route path="plans" element={<SAPlans />} />
         </Route>
 
-                {/* School Admin */}
-                <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><SchoolAdminLayout /></ProtectedRoute>}>
+        {/* School Admin */}
+        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><SchoolAdminLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="sessions" element={<AdminSessions />} />
@@ -116,12 +137,25 @@ export default function App() {
             <Route path="settings" element={<FeeSettings />} />
             <Route path="staff" element={<FeeStaff />} />
           </Route>
+
+          <Route path="reception" element={<ReceptionShell />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {receptionPages}
+            <Route path="fields" element={<ReceptionFields />} />
+            <Route path="staff" element={<ReceptionStaff />} />
+          </Route>
         </Route>
 
         {/* Fee Collector (receptionist) */}
         <Route path="/fees" element={<ProtectedRoute allowedRoles={['fee_collector']}><FeeLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="dashboard" replace />} />
           {feePages}
+        </Route>
+
+        {/* Reception Desk (enquiries + visitors) */}
+        <Route path="/reception" element={<ProtectedRoute allowedRoles={['receptionist']}><ReceptionLayout /></ProtectedRoute>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          {receptionPages}
         </Route>
 
         {/* Faculty */}

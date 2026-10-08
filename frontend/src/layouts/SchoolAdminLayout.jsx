@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import {
   LayoutDashboard, CalendarDays, BookOpen, Users, UserCheck,
-  ClipboardList, BarChart3, FileDown, GraduationCap, Lock, Wallet, CalendarRange, ListChecks, Activity,
+  ClipboardList, BarChart3, FileDown, GraduationCap, Lock, Wallet, CalendarRange, ListChecks, Activity, ConciergeBell,
 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutSchool } from '../api/auth.api';
@@ -23,6 +23,7 @@ const navItems = [
   { to: '/admin/reports',     icon: FileDown,        label: 'Reports'     },
   { to: '/admin/teacher-reports', icon: Activity,    label: 'Teacher Reports' },
   { to: '/admin/fees',        icon: Wallet,          label: 'Fee Management' },
+  { to: '/admin/reception',   icon: ConciergeBell,   label: 'Reception'   },
   { to: '/admin/calendar',    icon: CalendarRange,   label: 'Calendar'    },
 ];
 

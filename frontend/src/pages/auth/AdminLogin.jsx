@@ -31,7 +31,8 @@ export default function AdminLogin() {
     onSuccess: (res) => {
       const user = res.data.data;
       setAuth(user);
-      navigate(user.role === 'fee_collector' ? '/fees/dashboard' : '/admin/dashboard');
+      const home = { fee_collector: '/fees/dashboard', receptionist: '/reception/dashboard' };
+      navigate(home[user.role] || '/admin/dashboard');
     },
   });
 

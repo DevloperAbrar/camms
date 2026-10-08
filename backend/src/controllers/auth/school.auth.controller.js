@@ -77,8 +77,8 @@ const passwordLogin = asyncHandler(async (req, res) => {
   if (!user || !user.passwordHash) {
     return ApiResponse.error(res, 401, 'Invalid credentials');
   }
-  if (![constants.ROLES.ADMIN, constants.ROLES.FEE_COLLECTOR].includes(user.role)) {
-    return ApiResponse.error(res, 403, 'This login is for school admin and fee collector accounts only');
+  if (![constants.ROLES.ADMIN, constants.ROLES.FEE_COLLECTOR, constants.ROLES.RECEPTIONIST].includes(user.role)) {
+    return ApiResponse.error(res, 403, 'This login is for school admin, fee collector and receptionist accounts only');
   }
   if (user.status !== 'active') {
     return ApiResponse.error(res, 403, 'This account has been deactivated');

@@ -7,6 +7,7 @@ const { authorize } = require('../middleware/role.middleware');
 const { enforceTenant } = require('../middleware/tenant.middleware');
 const { checkSubscriptionActive } = require('../middleware/subscription.middleware');
 const feeStaffController = require('../controllers/schooladmin/feestaff.controller');
+const receptionStaffController = require('../controllers/schooladmin/receptionstaff.controller');
 const sessionController = require('../controllers/schooladmin/session.controller');
 const classController = require('../controllers/schooladmin/class.controller');
 const sectionController = require('../controllers/schooladmin/section.controller');
@@ -196,6 +197,13 @@ router.post('/fee-staff', feeStaffController.createFeeStaff);
 router.patch('/fee-staff/:id', feeStaffController.updateFeeStaff);
 router.post('/fee-staff/:id/password', feeStaffController.setFeeStaffPassword);
 router.delete('/fee-staff/:id', feeStaffController.deleteFeeStaff);
+
+// Receptionists (enquiry + visitor desk logins)
+router.get('/reception-staff', receptionStaffController.listStaff);
+router.post('/reception-staff', receptionStaffController.createStaff);
+router.patch('/reception-staff/:id', receptionStaffController.updateStaff);
+router.post('/reception-staff/:id/password', receptionStaffController.setStaffPassword);
+router.delete('/reception-staff/:id', receptionStaffController.deleteStaff);
 
 router.get('/notifications', notificationController.listMyNotifications);
 router.patch('/notifications/:id/read', notificationController.markNotificationRead);

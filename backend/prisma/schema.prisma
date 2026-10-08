@@ -14,6 +14,7 @@ enum UserRole {
   admin
   faculty
   fee_collector
+  receptionist
 }
 
 enum SchoolStatus {
@@ -116,6 +117,9 @@ model School {
   calendarSettings   CalendarSettings[]
   syllabusChapters   SyllabusChapter[]
   syllabusTemplates  SyllabusTemplate[]
+  enquiries          Enquiry[]
+  visitors           Visitor[]
+  receptionFields    ReceptionField[]
 
   @@map("schools")
 }
@@ -327,6 +331,7 @@ model Student {
   school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   enrollments  Enrollment[]
   feeReceipts  FeeReceipt[]
+  enquiry      Enquiry?
 
   @@unique([schoolId, enrollmentNumber])
   @@index([schoolId])
@@ -888,4 +893,154 @@ model SyllabusTemplate {
   @@index([schoolId])
   @@index([className, subjectName])
   @@map("syllabus_templates")
+}
+
+// ============= RECEPTION: ADMISSION ENQUIRIES + VISITOR LOG =============
+
+enum EnquiryStage {
+  new_lead
+  follow_up
+  interested
+  test_scheduled
+  interview
+  admitted
+  lost
+}
+
+enum ReceptionFieldScope {
+  enquiry
+  visitor
+}
+
+model Enquiry {
+  id                 String       @id @default(uuid())
+  schoolId           String       @map("school_id")
+  enquirySeq         Int          @map("enquiry_seq")
+  enquiryNo          String       @map("enquiry_no")
+  studentName        String       @map("student_name")
+  dob                DateTime?    @db.Date
+  gender             String?
+  classSought        String       @map("class_sought")
+  academicYear       String?      @map("academic_year")
+  parentName         String       @map("parent_name")
+  phone              String
+  altPhone           String?      @map("alt_phone")
+  email              String?
+  address            String?
+  previousSchool     String?      @map("previous_school")
+  source             String       @default("walk_in")
+  referredBy         String?      @map("referred_by")
+  priority           String       @default("medium")
+  stage              EnquiryStage @default(new_lead)
+  lostReason         String?      @map("lost_reason")
+  notes              String?
+  customData         Json         @default("{}") @map("custom_data")
+  assignedToId       String?      @map("assigned_to_id")
+  nextFollowUpOn     DateTime?    @map("next_follow_up_on") @db.Date
+  lastContactedAt    DateTime?    @map("last_contacted_at")
+  convertedStudentId String?      @unique @map("converted_student_id")
+  convertedAt        DateTime?    @map("converted_at")
+  createdById        String       @map("created_by_id")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  school    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student   Student?          @relation(fields: [convertedStudentId], references: [id], onDelete: SetNull)
+  followUps EnquiryFollowUp[]
+
+  @@unique([schoolId, enquirySeq])
+  @@index([schoolId, stage])
+  @@index([schoolId, nextFollowUpOn])
+  @@index([schoolId, phone])
+  @@index([schoolId, createdAt])
+  @@map("enquiries")
+}
+
+model EnquiryFollowUp {
+  id             String        @id @default(uuid())
+  schoolId       String        @map("school_id")
+  enquiryId      String        @map("enquiry_id")
+  kind           String
+  note           String?
+  fromStage      EnquiryStage? @map("from_stage")
+  toStage        EnquiryStage? @map("to_stage")
+  nextFollowUpOn DateTime?     @map("next_follow_up_on") @db.Date
+  doneById       String        @map("done_by_id")
+  doneByName     String        @map("done_by_name")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, createdAt])
+  @@index([schoolId])
+  @@map("enquiry_follow_ups")
+}
+
+model Visitor {
+  id             String    @id @default(uuid())
+  schoolId       String    @map("school_id")
+  visitSeq       Int       @map("visit_seq")
+  passNo         String    @map("pass_no")
+  name           String
+  phone          String
+  purpose        String
+  purposeNote    String?   @map("purpose_note")
+  hostUserId     String?   @map("host_user_id")
+  hostName       String?   @map("host_name")
+  studentId      String?   @map("student_id")
+  studentName    String?   @map("student_name")
+  enquiryId      String?   @map("enquiry_id")
+  headCount      Int       @default(1) @map("head_count")
+  idProofType    String?   @map("id_proof_type")
+  idProofLast4   String?   @map("id_proof_last4")
+  vehicleNumber  String?   @map("vehicle_number")
+  badgeNumber    String?   @map("badge_number")
+  remarks        String?
+  customData     Json      @default("{}") @map("custom_data")
+  checkInAt      DateTime  @default(now()) @map("check_in_at")
+  checkOutAt     DateTime? @map("check_out_at")
+  autoCheckedOut Boolean   @default(false) @map("auto_checked_out")
+  checkInById    String    @map("check_in_by_id")
+  checkInByName  String    @map("check_in_by_name")
+  checkOutById   String?   @map("check_out_by_id")
+  checkOutByName String?   @map("check_out_by_name")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, visitSeq])
+  @@index([schoolId, checkInAt])
+  @@index([schoolId, checkOutAt])
+  @@index([schoolId, phone])
+  @@map("visitors")
+}
+
+model ReceptionField {
+  id         String              @id @default(uuid())
+  schoolId   String              @map("school_id")
+  scope      ReceptionFieldScope
+  key        String
+  label      String
+  type       String
+  options    Json                @default("[]")
+  isRequired Boolean             @default(false) @map("is_required")
+  isActive   Boolean             @default(true) @map("is_active")
+  sortOrder  Int                 @default(0) @map("sort_order")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, scope, key])
+  @@index([schoolId, scope])
+  @@map("reception_fields")
+}
+
+model ReceptionCounter {
+  id         String @id @default(uuid())
+  schoolId   String @map("school_id")
+  kind       String
+  lastNumber Int    @default(0) @map("last_number")
+
+  @@unique([schoolId, kind])
+  @@map("reception_counters")
 }
