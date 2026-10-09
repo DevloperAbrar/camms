@@ -1,4 +1,5 @@
 const { prisma } = require('../config/db');
+const { serializeSettings } = require('./notes.service');
 
 async function getSchoolWithSubscription(schoolId) {
   return prisma.school.findUnique({
@@ -37,13 +38,20 @@ async function listSchools({ status, search, page = 1, limit = 20 }) {
           take: 1,
           include: { plan: { select: { name: true } } },
         },
+        notesSettings: true,
         _count: { select: { students: true, users: true } },
       },
     }),
     prisma.school.count({ where }),
   ]);
 
-  return { schools, total, page, totalPages: Math.ceil(total / limit) };
+  // usedBytes is a BigInt, so settings are serialized before they go out as JSON
+  const items = schools.map(({ notesSettings, ...school }) => ({
+    ...school,
+    notes: serializeSettings(notesSettings),
+  }));
+
+  return { schools: items, total, page, totalPages: Math.ceil(total / limit) };
 }
 
 module.exports = { getSchoolWithSubscription, listSchools };

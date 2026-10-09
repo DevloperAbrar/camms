@@ -1,10 +1,12 @@
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('../../utils/asyncHandler');
 const ApiResponse = require('../../utils/apiResponse');
+const httpError = require('../../utils/httpError');
 const { prisma } = require('../../config/db');
 const { logAudit } = require('../../middleware/audit.middleware');
 const { generateTempPassword } = require('../../utils/generatePassword');
 const { listSchools, getSchoolWithSubscription } = require('../../services/school.service');
+const { serializeSettings } = require('../../services/notes.service');
 const {
   createSchoolSchema,
   resetAdminPasswordSchema,
@@ -124,16 +126,60 @@ const getSchoolById = asyncHandler(async (req, res) => {
 });
 
 const updateSchool = asyncHandler(async (req, res) => {
-  const data = updateSchoolSchema.parse(req.body);
+  const { notes: notesInput, ...schoolData } = updateSchoolSchema.parse(req.body);
+  const schoolId = req.params.id;
 
-  const school = await prisma.school.update({
-    where: { id: req.params.id },
-    data,
+  const existing = await prisma.school.findUnique({ where: { id: schoolId }, select: { id: true } });
+  if (!existing) return ApiResponse.error(res, 404, 'School not found');
+
+  // School details and the Notes add-on are saved together so a failure never leaves a half-applied edit
+  const { school, notesRow } = await prisma.$transaction(async (tx) => {
+    const updated = Object.keys(schoolData).length
+      ? await tx.school.update({ where: { id: schoolId }, data: schoolData })
+      : await tx.school.findUnique({ where: { id: schoolId } });
+
+    let row = null;
+    if (notesInput) {
+      const current = await tx.schoolNotesSettings.findUnique({ where: { schoolId } });
+
+      // Never allow a quota below what the school has already stored
+      if (notesInput.enabled && current && notesInput.quotaMb * 1048576 < Number(current.usedBytes)) {
+        const usedMb = Math.ceil(Number(current.usedBytes) / 1048576);
+        throw httpError(400, `This school has already used ${usedMb} MB. Choose a storage quota above that.`);
+      }
+
+      row = await tx.schoolNotesSettings.upsert({
+        where: { schoolId },
+        create: {
+          schoolId,
+          enabled: notesInput.enabled,
+          quotaMb: notesInput.quotaMb,
+          maxFileMb: notesInput.maxFileMb,
+          disabledAt: notesInput.enabled ? null : new Date(),
+        },
+        update: {
+          enabled: notesInput.enabled,
+          quotaMb: notesInput.quotaMb,
+          maxFileMb: notesInput.maxFileMb,
+          disabledAt: notesInput.enabled ? null : (current?.disabledAt ?? new Date()),
+        },
+      });
+    }
+
+    return { school: updated, notesRow: row };
   });
 
-  await logAudit({ req, action: 'UPDATE_SCHOOL', resourceType: 'school', resourceId: school.id, metadata: data });
+  await logAudit({ req, action: 'UPDATE_SCHOOL', resourceType: 'school', resourceId: school.id, metadata: schoolData });
 
-  return ApiResponse.success(res, 200, 'School updated', school);
+  if (notesInput) {
+    req.body = { ...req.body, schoolId: school.id }; // logAudit reads the target school from the body for super admins
+    await logAudit({ req, action: 'NOTES_SETTINGS_UPDATE', resourceType: 'school', resourceId: school.id, metadata: notesInput });
+  }
+
+  return ApiResponse.success(res, 200, 'School updated', {
+    ...school,
+    notes: notesRow ? serializeSettings(notesRow) : undefined,
+  });
 });
 
 const suspendSchool = asyncHandler(async (req, res) => {

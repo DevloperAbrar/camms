@@ -43,6 +43,7 @@ const updateSchoolSchema = z.object({
   contactPhone: z.string().optional(),
   logoUrl: z.string().url().optional(),
   timezone: z.string().optional(),
+  notes: notesOnCreateSchema.optional(),
 });
 
 const suspendSchoolSchema = z.object({

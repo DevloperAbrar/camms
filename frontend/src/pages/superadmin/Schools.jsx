@@ -14,6 +14,7 @@ import Input from '../../components/ui/Input';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+import { formatBytes } from '../../components/notes/notesUtils';
 
 const statusVariant = { active: 'success', trial: 'info', expired: 'danger', suspended: 'warning' };
 
@@ -40,7 +41,14 @@ const editSchema = z.object({
   address:      z.string().optional(),
   contactEmail: z.string().email('Valid email required'),
   contactPhone: z.string().optional(),
+  notesEnabled: z.boolean().optional(),
+  notesQuotaMb: z.coerce.number().int().optional(),
+  notesMaxFileMb: z.coerce.number().int().optional(),
 });
+
+const NOTES_QUOTA_GB = [1, 2, 5, 10, 20, 50];
+const NOTES_FILE_MB  = [5, 10, 15, 25];
+const selectClass = 'px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b] focus:outline-none focus:ring-2 focus:ring-[#f97316]';
 
 const renewSchema = z.object({
   amount:       z.coerce.number().positive('Amount required'),
@@ -170,7 +178,12 @@ export default function SASchools() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => updateSchool(id, data),
-    onSuccess: () => { qc.invalidateQueries(['sa-schools']); setEditSchool(null); editForm.reset(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sa-schools'] });
+      qc.invalidateQueries({ queryKey: ['sa-notes-schools'] });
+      setEditSchool(null);
+      editForm.reset();
+    },
   });
 
   const renewMutation = useMutation({
@@ -206,7 +219,11 @@ export default function SASchools() {
       address: school.address || '',
       contactEmail: school.contactEmail,
       contactPhone: school.contactPhone || '',
+      notesEnabled: !!school.notes?.enabled,
+      notesQuotaMb: school.notes?.quotaMb || 2048,
+      notesMaxFileMb: school.notes?.maxFileMb || 10,
     });
+    updateMutation.reset();
   };
 
   const openRenew = (school) => {
@@ -227,6 +244,17 @@ export default function SASchools() {
   };
 
   const resetPwdError = resetPwd && !isValidPassword(resetPwd) ? PASSWORD_MESSAGE : '';
+
+  const submitEdit = (d) => {
+    const { notesEnabled, notesQuotaMb, notesMaxFileMb, ...details } = d;
+    const payload = { ...details };
+    const hadNotesRecord = (editSchool.notes?.quotaMb || 0) > 0;
+    // Only touch the add-on when it is being switched on, or when the school already has a Notes record
+    if (notesEnabled || hadNotesRecord) {
+      payload.notes = { enabled: !!notesEnabled, quotaMb: notesQuotaMb || 2048, maxFileMb: notesMaxFileMb || 10 };
+    }
+    updateMutation.mutate({ id: editSchool.id, data: payload });
+  };
 
   const submitCreate = (d) => {
     const { adminPassword, notesEnabled, notesQuotaGb, ...rest } = d;
@@ -252,6 +280,9 @@ export default function SASchools() {
         </div>
       ) : <span className="text-[#94a3b8]">—</span>;
     }},
+    { key: 'notes', label: 'Notes', render: (r) => (
+      <Badge label={r.notes?.enabled ? 'Enabled' : 'Off'} variant={r.notes?.enabled ? 'success' : 'default'} />
+    )},
     { key: 'status', label: 'Status', render: (r) => (
       <Badge label={r.status.charAt(0).toUpperCase() + r.status.slice(1)} variant={statusVariant[r.status] || 'default'} />
     )},
@@ -375,11 +406,44 @@ export default function SASchools() {
 
       {/* Edit School Modal */}
       <Modal open={!!editSchool} onClose={() => { setEditSchool(null); editForm.reset(); }} title={`Edit — ${editSchool?.name || ''}`} size="md">
-        <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editSchool.id, data: d }))} className="space-y-4">
+        <form onSubmit={editForm.handleSubmit(submitEdit)} className="space-y-4">
           <Input label="School Name"   name="name"         register={editForm.register} error={editForm.formState.errors.name}         required />
           <Input label="Contact Email" name="contactEmail" register={editForm.register} error={editForm.formState.errors.contactEmail} required type="email" />
           <Input label="Contact Phone" name="contactPhone" register={editForm.register} error={editForm.formState.errors.contactPhone} />
           <Input label="Address"       name="address"      register={editForm.register} error={editForm.formState.errors.address} />
+
+          <div className="rounded-lg border border-[#e2e8f0] p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-[#374151]">
+              <input type="checkbox" {...editForm.register('notesEnabled')} />
+              Notes add-on (extra charge, uses storage)
+            </label>
+            {editForm.watch('notesEnabled') && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-[#64748b]">Storage quota</label>
+                  <select {...editForm.register('notesQuotaMb')} className={selectClass}>
+                    {[...new Set([...NOTES_QUOTA_GB.map((g) => g * 1024), Number(editForm.watch('notesQuotaMb')) || 2048])]
+                      .sort((a, b) => a - b)
+                      .map((mb) => <option key={mb} value={mb}>{mb % 1024 === 0 ? `${mb / 1024} GB` : `${mb} MB`}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-[#64748b]">Max size per file</label>
+                  <select {...editForm.register('notesMaxFileMb')} className={selectClass}>
+                    {[...new Set([...NOTES_FILE_MB, Number(editForm.watch('notesMaxFileMb')) || 10])]
+                      .sort((a, b) => a - b)
+                      .map((mb) => <option key={mb} value={mb}>{mb} MB</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+            {(editSchool?.notes?.quotaMb || 0) > 0 && (
+              <p className="text-xs text-[#64748b]">
+                Used {formatBytes(editSchool.notes.usedBytes)} of {formatBytes(editSchool.notes.quotaBytes)}.
+                {' '}Turning Notes off hides it from teachers and parents; existing notes and files are kept.
+              </p>
+            )}
+          </div>
 
           {updateMutation.isError && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
