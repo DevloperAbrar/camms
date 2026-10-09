@@ -71,6 +71,12 @@ import AdminSyllabus from './pages/admin/Syllabus';
 import FacultySyllabus from './pages/faculty/Syllabus';
 import ParentSyllabus from './pages/parent/Syllabus';
 
+import FacultyNotes from './pages/faculty/Notes';
+import FacultyNoteEditor from './pages/faculty/NoteEditor';
+import ParentNotes from './pages/parent/Notes';
+import AdminNotes from './pages/admin/Notes';
+import SANotesAccess from './pages/superadmin/NotesAccess';
+
 // The same fee screens are used by the school admin (/admin/fees/*) and the fee collector (/fees/*)
 const feePages = (
   <>
@@ -112,6 +118,7 @@ export default function App() {
           <Route path="dashboard" element={<SADashboard />} />
           <Route path="schools" element={<SASchools />} />
           <Route path="plans" element={<SAPlans />} />
+          <Route path="notes-access" element={<SANotesAccess />} />
         </Route>
 
         {/* School Admin */}
@@ -129,6 +136,7 @@ export default function App() {
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="teacher-reports" element={<AdminTeacherReports />} />
+          <Route path="notes" element={<AdminNotes />} />
 
           <Route path="fees" element={<FeeShell />}>
             <Route index element={<Navigate to="dashboard" replace />} />
@@ -168,6 +176,8 @@ export default function App() {
           <Route path="reports" element={<FacultyReports />} />
           <Route path="calendar" element={<FacultyCalendar />} />
           <Route path="syllabus" element={<FacultySyllabus />} />
+          <Route path="notes" element={<FacultyNotes />} />
+          <Route path="notes/editor/:id?" element={<FacultyNoteEditor />} />
         </Route>
 
         {/* Parent */}
@@ -179,6 +189,7 @@ export default function App() {
           <Route path="fees" element={<ParentFees />} />
           <Route path="calendar" element={<ParentCalendar />} />
           <Route path="syllabus" element={<ParentSyllabus />} />
+          <Route path="notes" element={<ParentNotes />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

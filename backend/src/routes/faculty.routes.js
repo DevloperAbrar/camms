@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/role.middleware');
 const { enforceTenant } = require('../middleware/tenant.middleware');
 const { checkSubscriptionActive } = require('../middleware/subscription.middleware');
+const { requireNotesFeature } = require('../middleware/notes.middleware');
 
 const dashboardController = require('../controllers/faculty/dashboard.controller');
 const attendanceController = require('../controllers/faculty/attendance.controller');
@@ -13,6 +14,7 @@ const correctionController = require('../controllers/faculty/correction.controll
 const analyticsController = require('../controllers/faculty/analytics.controller');
 const reportsController = require('../controllers/faculty/reports.controller');
 const syllabusController = require('../controllers/faculty/syllabus.controller');
+const notesController = require('../controllers/faculty/notes.controller');
 
 const notificationController = require('../controllers/shared/notification.controller');
 const calendarController = require('../controllers/shared/calendar.controller');
@@ -62,6 +64,25 @@ router.get('/syllabus/my-classes', syllabusController.getMyClasses);
 router.get('/syllabus/tracker', syllabusController.getTracker);
 router.put('/syllabus/progress', syllabusController.saveProgress);
 router.get('/syllabus/exam-readiness', syllabusController.getReadiness);
+
+// Notes. /notes/meta stays open so the page can say "not enabled"; everything below it needs the school's Notes entitlement.
+router.get('/notes/meta', notesController.getMeta);
+router.use('/notes', requireNotesFeature);
+router.get('/notes/chapters', notesController.getChapters);
+router.get('/notes/students', notesController.getStudents);
+router.get('/notes', notesController.listNotes);
+router.post('/notes', notesController.createNote);
+router.get('/notes/:id', notesController.getNote);
+router.patch('/notes/:id', notesController.updateNote);
+router.delete('/notes/:id', notesController.deleteNote);
+router.post('/notes/:id/publish', notesController.publishNote);
+router.post('/notes/:id/unpublish', notesController.unpublishNote);
+router.get('/notes/:id/readers', notesController.getReaders);
+router.post('/notes/:id/uploads/initiate', notesController.initiateUpload);
+router.post('/notes/:id/uploads/:attId/confirm', notesController.confirmUpload);
+router.post('/notes/:id/links', notesController.addLink);
+router.delete('/notes/:id/attachments/:attId', notesController.removeAttachment);
+router.get('/notes/:id/attachments/:attId/url', notesController.getAttachmentUrl);
 
 // Academic Calendar (read-only)
 router.get('/calendar', calendarController.getFacultyCalendar);

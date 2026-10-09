@@ -24,9 +24,9 @@ const correctionController = require('../controllers/schooladmin/correction.cont
 const syllabusController = require('../controllers/schooladmin/syllabus.controller');
 const reportCardController = require('../controllers/schooladmin/reportcard.controller');
 const teacherReportController = require('../controllers/schooladmin/teacherreport.controller');
-
 const marksLockController = require('../controllers/schooladmin/markslock.controller');
-
+const notesController = require('../controllers/schooladmin/notes.controller');
+const { requireNotesFeature } = require('../middleware/notes.middleware');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -41,6 +41,15 @@ const upload = multer({
 
 // Every route: authenticated admin, tenant-scoped, subscription must be active
 router.use(authenticate, authorize('admin'), enforceTenant, checkSubscriptionActive);
+
+// Notes oversight (usage stays visible even when the feature is off)
+router.get('/notes/usage', notesController.getUsage);
+router.use('/notes', requireNotesFeature);
+router.get('/notes', notesController.listNotes);
+router.get('/notes/:id', notesController.getNote);
+router.post('/notes/:id/takedown', notesController.takedown);
+router.post('/notes/:id/restore', notesController.restore);
+router.get('/notes/:id/attachments/:attId/url', notesController.getAttachmentUrl);
 
 // Sessions
 router.post('/sessions', sessionController.createSession);

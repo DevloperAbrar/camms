@@ -4,6 +4,7 @@ const notificationController = require('../controllers/shared/notification.contr
 const { authenticate } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/role.middleware');
 const { verifyChildAccess } = require('../middleware/parentAccess.middleware');
+const { requireNotesForChild } = require('../middleware/notes.middleware');
 
 const childrenController = require('../controllers/parent/children.controller');
 const attendanceController = require('../controllers/parent/attendance.controller');
@@ -12,6 +13,7 @@ const noticeController = require('../controllers/parent/notice.controller');
 const feesController = require('../controllers/parent/fees.controller');
 const calendarController = require('../controllers/shared/calendar.controller');
 const syllabusController = require('../controllers/parent/syllabus.controller');
+const notesController = require('../controllers/parent/notes.controller');
 
 // Note: no enforceTenant/checkSubscriptionActive here — parent JWT has no schoolId.
 // Access is scoped per-child instead, via verifyChildAccess on each route below.
@@ -33,6 +35,12 @@ router.get('/calendar/export', verifyChildAccess, calendarController.exportParen
 
 // Syllabus coverage (read-only, scoped to the child's own section)
 router.get('/syllabus', verifyChildAccess, syllabusController.getChildSyllabus);
+
+// Notes (read-only, scoped to the child's section / selected students)
+router.get('/notes/meta', verifyChildAccess, notesController.getMeta);
+router.get('/notes', verifyChildAccess, requireNotesForChild, notesController.listNotes);
+router.get('/notes/:id', verifyChildAccess, requireNotesForChild, notesController.getNote);
+router.get('/notes/:id/attachments/:attId/url', verifyChildAccess, requireNotesForChild, notesController.getAttachmentUrl);
 
 // Fees (read-only for parents)
 router.get('/fees', verifyChildAccess, feesController.getChildFees);

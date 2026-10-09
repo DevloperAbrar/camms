@@ -11,6 +11,7 @@ const schoolController = require('../controllers/superadmin/school.controller');
 const planController = require('../controllers/superadmin/plan.controller');
 const subscriptionController = require('../controllers/superadmin/subscription.controller');
 const dashboardController = require('../controllers/superadmin/dashboard.controller');
+const notesController = require('../controllers/superadmin/notes.controller');
 
 // Every route here is superadmin-only
 router.use(authenticate, authorize('superadmin'));
@@ -29,6 +30,10 @@ router.post('/schools/:id/reactivate', schoolController.reactivateSchool);
 router.patch('/schools/:id/plan', schoolController.changeSchoolPlan);
 router.post('/schools/:id/reset-admin-password', schoolController.resetAdminPassword);
 router.post('/schools/:id/impersonate', schoolController.impersonateSchoolAdmin);
+
+// Notes add-on: per-school on/off + storage quota
+router.get('/notes/schools', notesController.listSchools);
+router.put('/notes/schools/:id', notesController.updateSchoolNotes);
 
 // Plans
 router.post('/plans', planController.createPlan);

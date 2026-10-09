@@ -31,6 +31,8 @@ const createSchema = z.object({
   endDate:      z.string().min(1, 'End date required'),
   timezone:     z.string().default('Asia/Kolkata'),
   adminPassword: z.string().optional().refine((v) => !v || isValidPassword(v), PASSWORD_MESSAGE),
+  notesEnabled: z.boolean().optional(),
+  notesQuotaGb: z.string().optional(),
 });
 
 const editSchema = z.object({
@@ -227,8 +229,10 @@ export default function SASchools() {
   const resetPwdError = resetPwd && !isValidPassword(resetPwd) ? PASSWORD_MESSAGE : '';
 
   const submitCreate = (d) => {
-    const { adminPassword, ...rest } = d;
-    createMutation.mutate(adminPassword ? { ...rest, adminPassword } : rest);
+    const { adminPassword, notesEnabled, notesQuotaGb, ...rest } = d;
+    const payload = adminPassword ? { ...rest, adminPassword } : rest;
+    if (notesEnabled) payload.notes = { enabled: true, quotaMb: Number(notesQuotaGb || 2) * 1024, maxFileMb: 10 };
+    createMutation.mutate(payload);
   };
 
   const columns = [
@@ -340,6 +344,19 @@ export default function SASchools() {
                   />
                 )}
               />
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-[#e2e8f0] p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-[#374151]">
+                <input type="checkbox" {...createForm.register('notesEnabled')} />
+                Enable Notes add-on (extra charge, uses storage)
+              </label>
+              <select {...createForm.register('notesQuotaGb')} defaultValue="2" className="px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg bg-white text-[#1e293b]">
+                <option value="1">1 GB storage</option>
+                <option value="2">2 GB storage</option>
+                <option value="5">5 GB storage</option>
+                <option value="10">10 GB storage</option>
+                <option value="20">20 GB storage</option>
+              </select>
             </div>
           </div>
 

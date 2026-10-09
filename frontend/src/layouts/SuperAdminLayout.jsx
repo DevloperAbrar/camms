@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { LayoutDashboard, School, CreditCard, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, School, CreditCard, ShieldCheck, HardDrive } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutSuperadmin } from '../api/auth.api';
 import useAuthStore from '../store/auth.store';
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/superadmin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/superadmin/schools',   icon: School,          label: 'Schools'   },
   { to: '/superadmin/plans',     icon: CreditCard,      label: 'Plans'     },
+  { to: '/superadmin/notes-access', icon: HardDrive,   label: 'Notes Access' },
 ];
 
 export default function SuperAdminLayout() {

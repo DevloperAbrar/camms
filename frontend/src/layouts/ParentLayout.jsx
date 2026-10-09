@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { LayoutDashboard, CalendarCheck, FileText, Users, Wallet, CalendarRange, ListChecks } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, FileText, Users, Wallet, CalendarRange, ListChecks, BookText } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { logoutSchool } from '../api/auth.api';
 import useAuthStore from '../store/auth.store';
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/parent/attendance', icon: CalendarCheck,   label: 'Attendance' },
   { to: '/parent/marks',      icon: FileText,        label: 'Marks'      },
   { to: '/parent/syllabus',   icon: ListChecks,      label: 'Syllabus'   },
+  { to: '/parent/notes',      icon: BookText,        label: 'Notes'      },
   { to: '/parent/fees',       icon: Wallet,          label: 'Fees'       },
   { to: '/parent/calendar',   icon: CalendarRange,   label: 'Calendar'   },
 ];

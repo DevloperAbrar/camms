@@ -1,0 +1,17 @@
+.note-content, .note-editor .ProseMirror { font-size: 15px; line-height: 1.7; color: #1e293b; word-break: break-word; }
+.note-editor .ProseMirror { min-height: 280px; padding: 14px 16px; outline: none; }
+.note-content h1, .note-editor .ProseMirror h1 { font-size: 1.5rem; font-weight: 800; margin: 1rem 0 .5rem; }
+.note-content h2, .note-editor .ProseMirror h2 { font-size: 1.3rem; font-weight: 800; margin: 1rem 0 .5rem; }
+.note-content h3, .note-editor .ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin: .9rem 0 .4rem; }
+.note-content p, .note-editor .ProseMirror p { margin: .5rem 0; }
+.note-content ul, .note-editor .ProseMirror ul { list-style: disc; padding-left: 1.5rem; margin: .5rem 0; }
+.note-content ol, .note-editor .ProseMirror ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+.note-content blockquote, .note-editor .ProseMirror blockquote { border-left: 4px solid #f97316; background: #fff7ed; padding: .4rem .9rem; margin: .7rem 0; border-radius: 0 8px 8px 0; }
+.note-content code, .note-editor .ProseMirror code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+.note-content pre, .note-editor .ProseMirror pre { background: #0f172a; color: #e2e8f0; padding: .8rem 1rem; border-radius: 8px; overflow-x: auto; margin: .7rem 0; }
+.note-content a, .note-editor .ProseMirror a { color: #2563eb; text-decoration: underline; }
+.note-content img, .note-editor .ProseMirror img { max-width: 100%; height: auto; border-radius: 8px; margin: .6rem 0; }
+.note-content table, .note-editor .ProseMirror table { border-collapse: collapse; width: 100%; margin: .8rem 0; display: block; overflow-x: auto; }
+.note-content th, .note-content td, .note-editor .ProseMirror th, .note-editor .ProseMirror td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; vertical-align: top; min-width: 70px; }
+.note-content th, .note-editor .ProseMirror th { background: #f1f5f9; font-weight: 700; }
+.note-editor .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #f97316; }

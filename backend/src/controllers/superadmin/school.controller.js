@@ -81,6 +81,14 @@ const createSchool = asyncHandler(async (req, res) => {
     return { school, subscription, session, admin };
   });
 
+  if (data.notes && data.notes.enabled) {
+    await prisma.schoolNotesSettings.upsert({
+      where: { schoolId: result.school.id },
+      create: { schoolId: result.school.id, enabled: true, quotaMb: data.notes.quotaMb, maxFileMb: data.notes.maxFileMb },
+      update: { enabled: true, quotaMb: data.notes.quotaMb, maxFileMb: data.notes.maxFileMb, disabledAt: null },
+    });
+  }
+
   await logAudit({
     req,
     action: 'CREATE_SCHOOL',

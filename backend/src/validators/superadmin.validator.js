@@ -12,6 +12,12 @@ const optionalAdminPassword = z.preprocess(
     .optional()
 );
 
+const notesOnCreateSchema = z.object({
+  enabled: z.boolean(),
+  quotaMb: z.number().int().min(100).max(512000),
+  maxFileMb: z.number().int().min(1).max(25),
+});
+
 const createSchoolSchema = z.object({
   name: z.string().min(2),
   code: z.string().min(2).max(20).regex(/^[a-zA-Z0-9-]+$/, 'Code can only contain letters, numbers, and hyphens'),
@@ -23,6 +29,7 @@ const createSchoolSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   adminPassword: optionalAdminPassword,
+  notes: notesOnCreateSchema.optional(),
 });
 
 const resetAdminPasswordSchema = z.object({

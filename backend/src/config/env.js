@@ -12,6 +12,13 @@ const env = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   GOOGLE_CALLBACK_URL_SCHOOL: process.env.GOOGLE_CALLBACK_URL_SCHOOL,
+
+  // Cloudflare R2 (Notes file storage). Optional: Notes uploads return 503 until these are set.
+  R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+  R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+  R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+  R2_BUCKET: process.env.R2_BUCKET,
+  R2_ENDPOINT: process.env.R2_ENDPOINT,
 };
 
 const requiredInProd = ['DATABASE_URL', 'JWT_SECRET', 'SUPERADMIN_EMAIL', 'SUPERADMIN_PASSWORD_HASH'];

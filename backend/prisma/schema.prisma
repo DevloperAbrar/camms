@@ -120,6 +120,8 @@ model School {
   enquiries          Enquiry[]
   visitors           Visitor[]
   receptionFields    ReceptionField[]
+  notesSettings      SchoolNotesSettings?
+  notes              Note[]
 
   @@map("schools")
 }
@@ -1043,4 +1045,111 @@ model ReceptionCounter {
 
   @@unique([schoolId, kind])
   @@map("reception_counters")
+}
+
+
+// ============= NOTES =============
+
+// Per-school entitlement. A school only gets Notes when the super admin switches it on here.
+model SchoolNotesSettings {
+  id         String    @id @default(uuid())
+  schoolId   String    @unique @map("school_id")
+  enabled    Boolean   @default(false)
+  quotaMb    Int       @default(2048) @map("quota_mb")
+  maxFileMb  Int       @default(10) @map("max_file_mb")
+  usedBytes  BigInt    @default(0) @map("used_bytes")
+  disabledAt DateTime? @map("disabled_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_notes_settings")
+}
+
+model Note {
+  id             String    @id @default(uuid())
+  schoolId       String    @map("school_id")
+  sessionId      String    @map("session_id")
+  authorId       String    @map("author_id") // teacher; no FK so notes survive if the teacher is removed
+  classId        String    @map("class_id")
+  subjectId      String    @map("subject_id")
+  chapterId      String?   @map("chapter_id")
+  type           String    @default("note")   // note | formula_sheet | worksheet | revision | homework
+  title          String
+  contentHtml    String    @default("") @map("content_html")
+  contentText    String    @default("") @map("content_text")
+  status         String    @default("draft")  // draft | scheduled | published | taken_down
+  publishAt      DateTime? @map("publish_at")
+  publishedAt    DateTime? @map("published_at")
+  notifiedAt     DateTime? @map("notified_at")
+  allowDownload  Boolean   @default(true) @map("allow_download")
+  takedownReason String?   @map("takedown_reason")
+  takedownById   String?   @map("takedown_by_id")
+  takedownAt     DateTime? @map("takedown_at")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  school      School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  audiences   NoteAudience[]
+  attachments NoteAttachment[]
+  views       NoteView[]
+
+  @@index([schoolId, classId, status, publishedAt], map: "notes_school_class_status_idx")
+  @@index([schoolId, authorId, status], map: "notes_school_author_idx")
+  @@index([status, publishAt], map: "notes_status_publish_at_idx")
+  @@index([deletedAt], map: "notes_deleted_at_idx")
+  @@map("notes")
+}
+
+// sectionId set => whole section; studentId set => one selected student (remedial batch)
+model NoteAudience {
+  id        String  @id @default(uuid())
+  noteId    String  @map("note_id")
+  sectionId String? @map("section_id")
+  studentId String? @map("student_id")
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId], map: "note_audiences_note_idx")
+  @@index([sectionId], map: "note_audiences_section_idx")
+  @@index([studentId], map: "note_audiences_student_idx")
+  @@map("note_audiences")
+}
+
+// kind: file | inline_image | link.  status: pending (not confirmed yet) | ready
+model NoteAttachment {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  noteId      String    @map("note_id")
+  kind        String
+  status      String    @default("pending")
+  storageKey  String?   @map("storage_key")
+  fileName    String    @map("file_name")
+  mime        String?
+  sizeBytes   Int       @default(0) @map("size_bytes")
+  url         String?
+  createdById String    @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  confirmedAt DateTime? @map("confirmed_at")
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId], map: "note_attachments_note_idx")
+  @@index([status, createdAt], map: "note_attachments_status_created_idx")
+  @@map("note_attachments")
+}
+
+model NoteView {
+  id        String   @id @default(uuid())
+  noteId    String   @map("note_id")
+  studentId String   @map("student_id")
+  viewedAt  DateTime @default(now()) @map("viewed_at")
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, studentId], map: "note_views_note_student_key")
+  @@index([studentId], map: "note_views_student_idx")
+  @@map("note_views")
 }
